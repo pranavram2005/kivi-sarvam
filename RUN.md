@@ -261,7 +261,7 @@ for the offline engine.
 | Anthropic | `anthropic` | `ANTHROPIC_API_KEY` | `claude-opus-5` | already in requirements |
 | Groq | `groq` | `GROQ_API_KEY` | `openai/gpt-oss-120b` | `pip install groq` |
 | OpenAI | `openai` | `OPENAI_API_KEY` | `gpt-4o-mini` | `pip install openai` |
-| Google | `gemini` | `GOOGLE_API_KEY` | `gemini-2.5-flash-lite` | `pip install google-genai` |
+| Google | `gemini` | `GOOGLE_API_KEY` | `gemini-flash-lite-latest` | `pip install google-genai` |
 
 Embeddings are configured separately with `KIVI_EMBEDDING_PROVIDER`
 (`hashing` by default, or `openai` / `gemini` / `sentence-transformers`).
