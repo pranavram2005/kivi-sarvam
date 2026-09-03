@@ -620,13 +620,13 @@ Recall per memory type, both engines, on the same 40 records:
 | | offline | Groq (`gpt-oss-120b`) |
 | --- | ---: | ---: |
 | fact | **33%** | 100% |
-| preference | **33%** | 83% |
+| preference | **33%** | 100% |
 | event | 88% | 100% |
 | task | 71% | 100% |
 | episode | 80% | 80% |
-| **overall recall** | **62%** | **94%** |
+| **overall recall** | **62%** | **97%** |
 | overall precision | 71% | 97% |
-| records exactly right | 27/40 | 38/40 |
+| records exactly right | 27/40 | 39/40 |
 | filler correctly ignored | 9/10 | 10/10 |
 
 **Read the first column as the honest cost of the offline engine.** On the

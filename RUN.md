@@ -208,7 +208,7 @@ A second, smaller suite that measures **only** extraction, against 40 dictations
 phrased unlike the development corpus. It answers the question the main suite
 cannot: how much of what a real user says would Kivi actually learn?
 
-Expect **62% recall offline** and **94% with an LLM configured** — the gap is
+Expect **62% recall offline** and **97% with an LLM configured** — the gap is
 the point, and it is why the README recommends a real model for your own corpus.
 It reports rather than fails; results land in
 `evaluation/results/heldout_extraction_<engine>.json`.
