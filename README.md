@@ -202,9 +202,10 @@ transcript
 | Transcripts ingested | 500 |
 | Produced at least one memory | 466 |
 | **Deliberately ignored** | **34** (6.8%) |
-| Memories created | 291 (0.58 per transcript) |
-| Skipped as duplicates | 74 |
-| Superseded by a correction | 42 |
+| Memories created | 304 (0.61 per transcript) |
+| Skipped as duplicates | 76 |
+| Superseded by a correction | 25 |
+| Flagged as conflicts (both kept) | 51 |
 | Rejected below the confidence threshold | 10 |
 
 Three things are ignored:

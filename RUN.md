@@ -16,7 +16,7 @@
 > that is verified reproducible, and a hosted container can be asleep, rate
 > limited, or restarted at an inconvenient moment. Everything the assignment
 > asks a hosted application to document is in
-> [§10 The hosted instance](#10-the-hosted-instance).
+> [§13 The hosted instance](#13-the-hosted-instance).
 
 Nothing below requires contacting the author.
 
@@ -82,7 +82,7 @@ One command does the migration, the import and the memory extraction:
 python scripts/seed.py
 ```
 
-Expected output (about 3 seconds for 500 records):
+Expected output (about a second for 500 records on a laptop):
 
 ```
 Kivi Semantic Memory - seeding
@@ -92,19 +92,24 @@ Kivi Semantic Memory - seeding
 
 Importing 500 record(s) from development_corpus.jsonl...
 Processing 500 transcript(s) with the heuristic engine.
-   500/500  remembered  466  ignored   34  memories  291  superseded  42
+   500/500  remembered  466  ignored   34  memories  304  superseded  25  $0.0000
 
+Done in 1.1s (2 ms/transcript)
   transcripts    : 500
     remembered   : 466
     ignored      : 34   (nothing durable said)
-  memories       : 291 created
-    superseded   : 42  (corrections applied)
-    duplicates   : 74  (already known, not stored again)
-    conflicts    : 49  (kept both, flagged)
+  memories       : 304 created
+    superseded   : 25  (corrections applied)
+    duplicates   : 76  (already known, not stored again)
+    conflicts    : 51  (kept both, flagged)
     rejected     : 10  (below the confidence threshold)
-  memory store   : {'ACTIVE': 340, 'REJECTED': 10, 'SUPERSEDED': 42}
-  by type        : {'episode': 102, 'event': 127, 'fact': 78, 'preference': 20, 'task': 13}
+  memory store   : {'ACTIVE': 355, 'REJECTED': 10, 'SUPERSEDED': 25}
+  by type        : {'episode': 115, 'event': 129, 'fact': 78, 'preference': 20, 'task': 13}
 ```
+
+These counts are deterministic: the corpus is fixed and the offline engine has
+no randomness, so the same numbers appear on every machine. They change only if
+you configure a real model, which extracts differently.
 
 <details>
 <summary>Prefer the individual steps?</summary>
@@ -395,7 +400,8 @@ python scripts/generate_corpus.py
 ## 11. Full sequence, from a clean clone
 
 ```bash
-git clone <repo> && cd kivi-semantic-memory
+git clone https://github.com/pranavram2005/kivi-sarvam.git
+cd kivi-sarvam
 
 python -m venv .venv && .venv\Scripts\activate     # Windows
 pip install -r requirements.txt
@@ -423,14 +429,14 @@ python scripts/reset.py --yes
 | `ModuleNotFoundError: No module named 'backend'` | Run commands from the **repository root**, not from `backend/`. |
 | `The database is empty, so there is nothing to evaluate` | Run `python scripts/seed.py` first. |
 | Evaluation warns that transcripts are unprocessed | Run `python scripts/process_corpus.py`. |
-| Fonts look like plain serif/sans | Fraunces, Switzer and Geist Mono load from CDNs. Offline, the fallback stacks are used; layout and colour are unaffected. |
+| Fonts look like plain serif/sans | Petrona, Space Grotesk and Geist Mono load from CDNs. Offline, the fallback stacks are used; layout and colour are unaffected. |
 | The UI shows `Could not reach the Kivi backend` intermittently while you edit files | You started uvicorn with a bare `--reload`, so it is restarting on frontend edits. Add `--reload-dir backend`. |
 | Port 5173 or 8000 already in use | `uvicorn backend.main:app --port 8001`, or change `server.port` in `frontend/vite.config.js`. |
 | `npm run dev` fails on an old Node | Node 18+ is required by Vite 6. Check with `node --version`. |
 
 ---
 
-## 10. The hosted instance
+## 13. The hosted instance
 
 Everything in this section works against the deployed URL, with no shell and no
 local install. It is here because the assignment requires a hosted application
@@ -497,14 +503,6 @@ survives a restart. Seeding happens only when that volume is empty — a restart
 never overwrites what you imported.
 
 ### Deploying your own copy
-
-```bash
-# 1. push the repository to GitHub
-# 2. railway.com -> New Project -> Deploy from GitHub repo
-# 3. Variables:  (optional) GROQ_API_KEY=...   KIVI_LLM_PROVIDER=groq
-# 4. Volumes:    add one, mount path /data      <- required, see below
-# 5. Networking: Generate Domain
-```
 
 ```bash
 # 1. push the repository to GitHub
