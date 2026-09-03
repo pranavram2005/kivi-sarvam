@@ -24,6 +24,7 @@ export default function Inspector({ status }) {
   const [queries, setQueries] = useState([]);
   const [openQuery, setOpenQuery] = useState(null);
   const [allCases, setAllCases] = useState(false);
+  const [allQueries, setAllQueries] = useState(false);
   const [detail, setDetail] = useState(null);
   const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
@@ -84,6 +85,9 @@ export default function Inspector({ status }) {
   // in the order the suite ran them.
   const ordered = [...shown].sort((a, b) => Number(a.passed) - Number(b.passed));
   const visibleCases = allCases ? ordered : ordered.slice(0, CASE_PREVIEW);
+  // The query log is newest-first already, so the newest questions are the
+  // ones a preview should show.
+  const visibleQueries = allQueries ? queries : queries.slice(0, CASE_PREVIEW);
 
   return (
     <div className="page">
@@ -348,12 +352,16 @@ export default function Inspector({ status }) {
           <Empty title="No questions asked yet">Ask something on the Hey Kivi screen.</Empty>
         ) : (
           <div className="stack">
-            {queries.map((q) => (
+            {visibleQueries.map((q) => (
               <div className="card card--hover" key={q.id}>
                 <button
                   onClick={() => openTrace(q.id)}
                   style={{
                     all: "unset",
+                    // `all: unset` also resets box-sizing to content-box, so
+                    // width:100% plus this padding made the button 36px wider
+                    // than its card and pushed the pills outside the border.
+                    boxSizing: "border-box",
                     display: "block",
                     width: "100%",
                     cursor: "pointer",
@@ -361,8 +369,8 @@ export default function Inspector({ status }) {
                   }}
                 >
                   <div className="row row--between row--wrap" style={{ gap: 12 }}>
-                    <strong style={{ fontWeight: 550 }}>{q.question}</strong>
-                    <div className="row" style={{ gap: 7 }}>
+                    <strong style={{ fontWeight: 550, minWidth: 0 }}>{q.question}</strong>
+                    <div className="row" style={{ gap: 7, flexShrink: 0 }}>
                       {q.abstained ? (
                         <Pill tone="warn">abstained</Pill>
                       ) : q.conflict ? (
@@ -397,6 +405,18 @@ export default function Inspector({ status }) {
             ))}
           </div>
         )}
+
+        {queries.length > CASE_PREVIEW ? (
+          <button
+            className="btn btn--quiet"
+            style={{ marginTop: 12, width: "100%" }}
+            onClick={() => setAllQueries((v) => !v)}
+          >
+            {allQueries
+              ? `Show fewer — collapse to ${CASE_PREVIEW}`
+              : `View all ${queries.length} questions — ${queries.length - CASE_PREVIEW} more`}
+          </button>
+        ) : null}
       </section>
 
       {status ? (
