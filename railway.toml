@@ -1,0 +1,25 @@
+# Railway deployment.
+#
+# Two settings matter and neither is a default:
+#
+#   builder = "DOCKERFILE"  — Railway's automatic builder would see package.json
+#                             and try to deploy the frontend alone, or see
+#                             requirements.txt and deploy the API without the
+#                             built UI. The Dockerfile builds both.
+#
+#   a volume at /data       — SQLite is a file. Without a volume every restart
+#                             discards the reviewer's imported corpus, which is
+#                             the one thing a hosted review cannot survive.
+#                             Attach it in the Railway dashboard: Volumes →
+#                             mount path /data.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+# A crashed container should come back rather than sit dead until someone looks.
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+healthcheckPath = "/api/health"
+healthcheckTimeout = 120

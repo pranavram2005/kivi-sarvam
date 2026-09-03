@@ -1,0 +1,1370 @@
+/* ===========================================================================
+ * Kivi Semantic Memory — design system
+ *
+ * Dark throughout. Kivi's own palette from heykivi.ai, but the "daylight" half
+ * of dusk-to-daylight is dropped: every surface in the app sits on the same
+ * dark ground.
+ *
+ * Three rules hold the look together:
+ *
+ *   1. Elevation by tone, never by shadow. A surface reads as raised because
+ *      it is a shade lighter, not because something is floating over the page.
+ *      There is not one drop shadow in this file - the only `box-shadow`s are
+ *      `inset` focus rings, which draw inside the control rather than under it.
+ *
+ *   2. A card is a drawn object: a fill, a 1px edge a shade lighter, and a
+ *      tight corner. This is measured from the Kivi desktop app rather than
+ *      chosen - Kivi outlines its cards, so we outline ours. Inside a card a
+ *      slightly brighter rule divides body from footer.
+ *
+ *   3. One accent, used sparingly. The green appears on the current nav item,
+ *      on a focused field, and on a figure worth reading — not on every chip.
+ * ======================================================================== */
+
+/*
+ * Palette sampled pixel-by-pixel from the Kivi desktop app (1.8.1-alpha.5)
+ * rather than approximated by eye, so the two products look like one product.
+ *
+ * The notable inversion: in Kivi the RAIL IS DARKER THAN THE PAGE. Most dark
+ * UIs raise the chrome above the content; Kivi sinks it, and the content reads
+ * as the lit surface. Everything else here follows from that.
+ */
+:root {
+  /* --- ground and elevation -------------------------------------------- */
+  --rail-bg: #0c0e0c; /* the rail: the darkest thing on screen */
+  --stage: #0e100e; /* the page itself, a step lighter than the rail */
+  --surface-1: #131413; /* wells and quiet blocks */
+  --surface-2: #18191a; /* cards — Kivi's card grey, faintly cool */
+  --surface-3: #1e1e1e; /* raised: hovered rows, key caps, active nav */
+  --surface-4: #262626; /* the highest step; used rarely */
+
+  /* --- text ------------------------------------------------------------- */
+  --text-0: #e9e7dd; /* primary — warm off-white, never pure white */
+  --text-1: #a7a99e; /* secondary */
+  --text-2: #84887d; /* tertiary, labels, metadata */
+  /* Lifted from Kivi's own dimmest grey until it clears 4.5:1 on the rail and
+     4.1:1 on a card. It carries eyebrows and counts — small type that people
+     actually read — and the sampled value failed AA on every surface. */
+  --text-3: #7c7f77; /* quietest readable */
+
+  /* --- lines ------------------------------------------------------------ */
+  /* Deliberately faint. A hairline should register as a change of density,
+     not as a drawn border. */
+  --line: rgba(255, 255, 255, 0.055);
+  --line-strong: rgba(255, 255, 255, 0.09);
+
+  /* --- accent ----------------------------------------------------------- */
+  /* Moss, not lime. Kivi's green sits further from yellow than ours did. */
+  --green: #90c46a;
+  --green-deep: #2e544c;
+  --green-soft: rgba(144, 196, 106, 0.13);
+  --green-line: rgba(144, 196, 106, 0.26);
+  /* The marker swipe behind the first word of a page title. */
+  --green-marker: #1f271a;
+
+  --amber: #d9a05b;
+  --amber-soft: rgba(217, 160, 91, 0.13);
+  --rose: #d98570;
+  --rose-soft: rgba(217, 133, 112, 0.13);
+  --blue: #8fb8e8;
+
+  /* --- shape ------------------------------------------------------------ */
+  /* Measured off the Kivi app's own cards: the corner curve settles within
+     about six pixels. Ours were two to three times that, which read as a
+     different, softer product. Tight corners, not round ones. */
+  --r-sm: 5px;
+  --r-md: 7px;
+  --r-lg: 9px;
+  --r-xl: 12px;
+  --r-pill: 999px;
+
+  /* --- edges ------------------------------------------------------------ */
+  /* Kivi does draw a border on a card - sampled at #202220 against a #18191a
+     fill - and a brighter rule inside it dividing body from footer. */
+  --edge: #202220;
+  --edge-inner: #2a2b2c;
+
+  /* --- motion ----------------------------------------------------------- */
+  --dur-micro: 150ms;
+  --dur-small: 250ms;
+  --dur-panel: 420ms;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* --- type ------------------------------------------------------------- */
+  /* The two typefaces the Kivi desktop app ships — its install directory
+     carries the OFL licences for exactly these. */
+  --font-display: "Petrona", Georgia, "Times New Roman", serif;
+  --font-body: "Space Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --grain-tile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256' viewBox='0 0 256 256'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23n)' opacity='.32'/%3E%3C/svg%3E");
+
+  --page-max: 1120px;
+  --rail: 228px;
+  --rail-narrow: 64px;
+}
+
+/* --------------------------------------------------------------------- base */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--stage);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--stage);
+  color: var(--text-0);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.6;
+  letter-spacing: -0.011em;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* keeps the dark ground from reading as flat black */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image: var(--grain-tile);
+  opacity: 0.28;
+  mix-blend-mode: overlay;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+/* Petrona is a text serif, not a display face: at heading sizes it wants a
+   lighter weight and looser tracking than a display serif would, or it reads
+   heavy. Kivi sets its own headline the same way. */
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.012em;
+  line-height: 1.12;
+  text-wrap: balance;
+  color: var(--text-0);
+}
+
+p {
+  margin: 0;
+}
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  color: var(--text-1);
+}
+
+::selection {
+  background: var(--green);
+  color: #10200a;
+}
+
+/* ------------------------------------------------------------------- shell */
+.app {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: var(--rail) minmax(0, 1fr);
+  min-height: 100vh;
+  transition: grid-template-columns var(--dur-small) var(--ease);
+}
+
+/* Collapsed to an icon rail rather than to nothing. Navigation you can still
+   see and click is worth 64px; hiding it entirely trades a little width for a
+   lost sense of where you are. Labels and counts go, icons stay.
+ *
+ * Hovering it brings the labels back. The expanded rail *overlays* the page
+ * rather than widening its column: reflowing the whole layout under a cursor
+ * that only brushed past is worse than covering it for a moment. Nothing on
+ * the page moves, and the peek costs no commitment.
+ *
+ * Everything below keys off `.rail--peek`, a shorthand for "collapsed, and
+ * either hovered or holding keyboard focus" - so tabbing into the rail opens
+ * it exactly as the mouse does. */
+.app--rail-closed {
+  grid-template-columns: var(--rail-narrow) minmax(0, 1fr);
+}
+
+.app--rail-closed .rail {
+  padding: 28px 8px;
+  align-items: center;
+  /* the sticky rail is already a positioned box, so it can overflow its own
+     grid column and paint above the content when it widens */
+  width: var(--rail-narrow);
+  z-index: 20;
+  transition:
+    width var(--dur-small) var(--ease),
+    padding var(--dur-small) var(--ease);
+  /* a beat before opening, so crossing the rail on the way somewhere else
+     does not fling it open; closing is immediate */
+  transition-delay: 0s;
+}
+
+.app--rail-closed .rail:hover,
+.app--rail-closed .rail:focus-within {
+  width: var(--rail);
+  padding: 28px 14px;
+  align-items: stretch;
+  z-index: 40;
+  border-right: 1px solid var(--edge);
+  transition-delay: 120ms;
+}
+
+.app--rail-closed .wordmark {
+  padding: 2px 0 22px;
+  justify-content: center;
+}
+
+.app--rail-closed .rail:hover .wordmark,
+.app--rail-closed .rail:focus-within .wordmark {
+  padding: 2px 10px 22px;
+  justify-content: flex-start;
+}
+
+/* Only the first letter and its green dot survive the collapse. */
+.app--rail-closed .wordmark__name {
+  font-size: 26px;
+}
+
+.app--rail-closed .rail:hover .wordmark__name,
+.app--rail-closed .rail:focus-within .wordmark__name {
+  font-size: 40px;
+}
+
+/* Hidden only while the rail is both collapsed AND untouched. Scoping the
+   hiding this way means the peek needs no counter-rules to undo it. */
+.app--rail-closed .rail:not(:hover):not(:focus-within) .wordmark__name .no-narrow,
+.app--rail-closed .rail:not(:hover):not(:focus-within) .wordmark__sub,
+.app--rail-closed .rail:not(:hover):not(:focus-within) .nav__label,
+.app--rail-closed .rail:not(:hover):not(:focus-within) .nav__count,
+.app--rail-closed .rail:not(:hover):not(:focus-within) .engine-chip__text,
+.app--rail-closed .rail:not(:hover):not(:focus-within) .engine-chip__pending {
+  display: none;
+}
+
+.app--rail-closed .nav {
+  width: 100%;
+}
+
+.app--rail-closed .rail:not(:hover):not(:focus-within) .nav__item {
+  justify-content: center;
+  padding: 11px 0;
+}
+
+.app--rail-closed .rail:not(:hover):not(:focus-within) .engine-chip {
+  justify-content: center;
+  padding: 10px 0;
+}
+
+/* Nothing should slide open at someone who asked for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  .app--rail-closed .rail {
+    transition: none;
+  }
+}
+
+/* The control sits at the top-left of the content, where Kivi keeps it, so it
+   stays reachable once the rail it hides is gone. */
+.rail-toggle {
+  position: fixed;
+  top: 14px;
+  left: calc(var(--rail) + 14px);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition:
+    left var(--dur-small) var(--ease),
+    background var(--dur-micro) var(--ease),
+    color var(--dur-micro) var(--ease);
+}
+
+.app--rail-closed .rail-toggle {
+  left: calc(var(--rail-narrow) + 14px);
+}
+
+/* While the rail is peeking it would otherwise sit *under* the open panel and
+   be unreachable - so the control that pins the rail open steps aside with it.
+   `:has()` is doing the work a sibling selector cannot: the button precedes
+   the rail in the DOM, so it has to be matched from the shell. */
+.app--rail-closed:has(.rail:hover) .rail-toggle,
+.app--rail-closed:has(.rail:focus-within) .rail-toggle {
+  left: calc(var(--rail) + 14px);
+  transition-delay: 120ms;
+}
+
+.rail-toggle:hover,
+.rail-toggle:focus-visible {
+  background: var(--surface-2);
+  color: var(--text-0);
+  outline: none;
+}
+
+.rail-toggle svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* The darkest column on screen, held off the page by a hairline. It stays put
+   while the content scrolls. */
+.rail {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+  padding: 28px 14px;
+  background: var(--rail-bg);
+  border-right: 1px solid var(--line);
+}
+
+.wordmark {
+  display: flex;
+  align-items: baseline;
+  padding: 2px 10px 22px;
+  border-bottom: 1px solid var(--edge);
+}
+
+/* The dotless letters carry their own tittle, drawn green. Sized and placed
+   from the app: a 7px dot on a 34px cap height, sitting just above x-height. */
+.wordmark__name .tittle {
+  position: relative;
+  font-style: normal;
+}
+
+.wordmark__name .tittle::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0.2em;
+  width: 0.15em;
+  height: 0.15em;
+  margin-left: -0.075em;
+  border-radius: var(--r-pill);
+  background: var(--green);
+}
+
+.wordmark__name {
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 300;
+  letter-spacing: -0.015em;
+  line-height: 1;
+  text-transform: lowercase;
+  color: var(--text-0);
+}
+
+.wordmark__sub {
+  display: block;
+  padding-left: 10px;
+  margin-top: 1px;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.nav__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-1);
+  font-size: 14.5px;
+  font-weight: 400;
+  text-transform: lowercase;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--dur-micro) var(--ease),
+    color var(--dur-micro) var(--ease);
+}
+
+.nav__item:hover {
+  background: var(--surface-1);
+  color: var(--text-0);
+}
+
+/* The current screen is marked by a green icon and brighter label rather than
+   a filled pill. On a rail this dark a filled block reads as a button someone
+   forgot to unpress; the green glyph is enough. */
+.nav__item[aria-current="page"] {
+  background: transparent;
+  color: var(--text-0);
+}
+
+.nav__glyph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--text-2);
+  transition: color var(--dur-micro) var(--ease);
+}
+
+.nav__glyph svg {
+  width: 16px;
+  height: 16px;
+}
+
+.nav__item:hover .nav__glyph {
+  color: var(--text-1);
+}
+
+.nav__item[aria-current="page"] .nav__glyph {
+  color: var(--green);
+}
+
+/* "your memory" — a lowercase green caption sitting on a short green rule,
+   the way Kivi captions "your space". */
+.nav__label {
+  flex: 1;
+  min-width: 0;
+}
+
+.nav__count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.rail__foot {
+  margin-top: auto;
+}
+
+/* The engine readout: which model is answering, and how much Kivi holds. */
+/* Shaped like Kivi's profile row: a round green mark, a name, a quieter line
+   under it. Kivi names the person; we name the engine that is answering. */
+.engine-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px;
+  border-top: 1px solid var(--edge);
+}
+
+.engine-chip__mark {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-pill);
+  background: var(--green);
+  color: #0e1a08;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: lowercase;
+}
+
+.engine-chip__text {
+  display: grid;
+  min-width: 0;
+}
+
+.engine-chip__name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-0);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.engine-chip__sub {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.engine-chip__pending {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  background: var(--amber-soft);
+  color: var(--amber);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* ------------------------------------------------------------------- page */
+.main {
+  min-width: 0;
+  padding: 44px clamp(22px, 4vw, 60px) 110px;
+}
+
+.page {
+  max-width: var(--page-max);
+  margin: 0 auto;
+  animation: rise var(--dur-panel) var(--ease) both;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.page__head {
+  margin-bottom: 38px;
+}
+
+.page__eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: lowercase;
+  color: var(--text-3);
+  margin-bottom: 14px;
+}
+
+.page__title {
+  font-size: clamp(34px, 3.9vw, 50px);
+  font-weight: 300;
+}
+
+/* Kivi's signature: the opening word of a page title wears a marker swipe - a
+   dark olive block with a green rule beneath, as if highlighted by hand. It is
+   the one place the accent sits *behind* type rather than beside it, which is
+   why only the first word ever gets it. */
+.page__title mark {
+  background: var(--green-marker);
+  box-shadow: inset 0 -2px 0 var(--green-line);
+  color: var(--text-0);
+  padding: 0 0.12em 0.04em;
+  border-radius: 3px;
+}
+
+.page__title em {
+  font-style: italic;
+  color: var(--text-0);
+}
+
+.page__lede {
+  max-width: 60ch;
+  margin-top: 14px;
+  color: var(--text-1);
+  font-size: 15px;
+}
+
+/* ------------------------------------------------------------------ pills */
+/* Quiet by default: a tinted label, not an outlined chip. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--surface-3);
+  color: var(--text-1);
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.pill--mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.pill--good {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.pill--warn {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.pill--rose {
+  background: var(--rose-soft);
+  color: var(--rose);
+}
+
+.pill--muted {
+  background: transparent;
+  color: var(--text-3);
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* --------------------------------------------------------------- surfaces */
+/* One surface treatment, used everywhere. No border, no shadow — it reads as
+   a distinct area because it is a shade lighter than the ground. */
+.card,
+.sheet {
+  border: 1px solid var(--edge);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+}
+
+.card--hover {
+  transition: background var(--dur-small) var(--ease);
+}
+
+.card--hover:hover {
+  background: var(--surface-3);
+}
+
+.sheet__pad {
+  padding: clamp(20px, 2.4vw, 30px);
+}
+
+.sheet__rule {
+  height: 1px;
+  background: var(--line);
+  border: 0;
+  margin: 0;
+}
+
+/* ------------------------------------------------------------------ forms */
+.field {
+  width: 100%;
+  padding: 13px 16px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--text-0);
+  font-size: 14.5px;
+  outline: none;
+  transition: background var(--dur-micro) var(--ease);
+}
+
+.field::placeholder {
+  color: var(--text-3);
+}
+
+.field:hover {
+  background: var(--surface-3);
+}
+
+.field:focus {
+  background: var(--surface-3);
+  box-shadow: inset 0 0 0 1px var(--green-line);
+}
+
+.select {
+  padding: 13px 16px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--text-0);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background var(--dur-micro) var(--ease);
+}
+
+.select:hover {
+  background: var(--surface-3);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 22px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--green);
+  color: #10200a;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  cursor: pointer;
+  transition:
+    filter var(--dur-micro) var(--ease),
+    opacity var(--dur-micro) var(--ease),
+    background var(--dur-micro) var(--ease);
+}
+
+.btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn--ghost,
+.btn--quiet {
+  background: var(--surface-3);
+  color: var(--text-1);
+}
+
+.btn--ghost:hover:not(:disabled),
+.btn--quiet:hover:not(:disabled) {
+  background: var(--surface-4);
+  color: var(--text-0);
+  filter: none;
+}
+
+.btn--small {
+  padding: 6px 13px;
+  font-size: 12.5px;
+  font-weight: 550;
+}
+
+.btn--danger:hover:not(:disabled) {
+  background: var(--rose-soft);
+  color: var(--rose);
+}
+
+/* --------------------------------------------------------------- utility */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.row--wrap {
+  flex-wrap: wrap;
+}
+
+.row--between {
+  justify-content: space-between;
+}
+
+.stack {
+  display: grid;
+  gap: 12px;
+}
+
+.stack--lg {
+  gap: 22px;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.muted {
+  color: var(--text-2);
+}
+
+.tiny {
+  font-size: 11.5px;
+}
+
+.small {
+  font-size: 13px;
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(242, 239, 228, 0.16);
+  border-top-color: var(--green);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.empty {
+  padding: 52px 30px;
+  text-align: center;
+  color: var(--text-2);
+  border-radius: var(--r-lg);
+  background: var(--surface-1);
+}
+
+.empty h3 {
+  color: var(--text-1);
+  font-size: 20px;
+  margin-bottom: 8px;
+}
+
+.banner {
+  padding: 13px 17px;
+  border-radius: var(--r-md);
+  background: var(--amber-soft);
+  color: var(--amber);
+  font-size: 13px;
+}
+
+/* ============================ Screen 1 — History ======================== */
+.feed__controls {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.feed__controls .field {
+  flex: 1 1 260px;
+}
+
+.day {
+  margin-bottom: 42px;
+}
+
+.day__head {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  margin-bottom: 6px;
+  padding: 0 18px 10px;
+}
+
+.day__label {
+  font-family: var(--font-display);
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+
+.day__date {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.dictation {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+  gap: 18px;
+  padding: 16px 18px;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: background var(--dur-micro) var(--ease);
+}
+
+.dictation:hover {
+  background: var(--surface-1);
+}
+
+.dictation--open {
+  background: var(--surface-2);
+  border: 1px solid var(--edge);
+}
+
+.dictation__time {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-3);
+  padding-top: 2px;
+}
+
+.dictation__text {
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.dictation__meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.dictation__detail {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 18px;
+}
+
+.asr {
+  padding: 12px 15px;
+  border-radius: var(--r-sm);
+  background: var(--stage);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.6;
+}
+
+.learned {
+  display: grid;
+  gap: 7px;
+}
+
+.learned__item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 15px;
+  border-radius: var(--r-sm);
+  background: var(--surface-3);
+  color: var(--text-0);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.learned__item--rejected {
+  background: transparent;
+  color: var(--text-3);
+  padding-left: 0;
+}
+
+.learned__item--superseded {
+  background: var(--surface-1);
+  color: var(--text-2);
+  text-decoration: line-through;
+  text-decoration-color: rgba(255, 255, 255, 0.18);
+}
+
+/* =========================== Screen 2 — Hey Kivi ========================
+   The conversation surface itself lives in heykivi.css. Only the page layout
+   it needs stays here. */
+.page--chat {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 190px);
+}
+
+/* ======================= Screen 3 — What Kivi Knows ===================== */
+.knowledge {
+  display: grid;
+  gap: 22px;
+}
+
+.know-section__title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  letter-spacing: -0.024em;
+}
+
+.know-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+}
+
+/* "Coming up" reads as a diary: one quiet sheet per day, the date set in the
+   accent so the eye can jump between days without reading the rows. */
+.daylist {
+  display: grid;
+  gap: 12px;
+}
+
+.daylist__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.daylist__label {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.09em;
+  text-transform: lowercase;
+  color: var(--green);
+}
+
+.daylist__count {
+  font-size: 11px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Retired memories are legible but visibly no longer the live answer. */
+.memory--archived .memory__text {
+  color: var(--text-1);
+}
+
+/* Cards in a row are stretched to a common height by the grid, but their
+   previews wrap to different lengths — so "View all" landed at a different
+   height in each card. Pushing the footer down with auto margin lines the
+   buttons up across the row. */
+.know-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.know-card__more {
+  margin-top: auto;
+  align-self: flex-start;
+}
+
+.know-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 3px;
+}
+
+.know-card__name {
+  font-family: var(--font-display);
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+
+.know-card__sub {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 13.5px;
+  color: var(--text-2);
+  margin-bottom: 16px;
+}
+
+.memory {
+  padding: 13px 0;
+}
+
+.memory + .memory {
+  border-top: 1px solid var(--line);
+}
+
+.memory__text {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-0);
+}
+
+.memory__foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 9px;
+  opacity: 0.45;
+  transition: opacity var(--dur-micro) var(--ease);
+}
+
+.memory:hover .memory__foot,
+.memory--editing .memory__foot,
+.memory__foot:focus-within {
+  opacity: 1;
+}
+
+.memory__edit {
+  width: 100%;
+  padding: 11px 14px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--surface-3);
+  color: var(--text-0);
+  font-size: 14px;
+  outline: none;
+  resize: vertical;
+  min-height: 66px;
+}
+
+.memory__edit:focus {
+  box-shadow: inset 0 0 0 1px var(--green-line);
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 26px;
+  flex-wrap: wrap;
+}
+
+.tab {
+  padding: 8px 16px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background var(--dur-micro) var(--ease),
+    color var(--dur-micro) var(--ease);
+}
+
+.tab:hover {
+  background: var(--surface-2);
+  color: var(--text-0);
+}
+
+.tab[aria-selected="true"] {
+  background: var(--surface-4);
+  color: var(--text-0);
+}
+
+/* ========================= Screen 4 — Inspector ========================= */
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(186px, 1fr));
+  gap: 2px;
+  margin-bottom: 30px;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background: var(--stage);
+}
+
+/* The tiles are separated by the ground showing through a 2px grid gap, not by
+   borders. Reads as one panel rather than a scatter of boxes. */
+.metric {
+  padding: 20px 20px 22px;
+  background: var(--surface-2);
+  border: 1px solid var(--edge);
+}
+
+.metric__label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.09em;
+  text-transform: lowercase;
+  color: var(--text-3);
+  margin-bottom: 10px;
+}
+
+.metric__value {
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 1;
+  letter-spacing: -0.032em;
+  color: var(--text-0);
+  font-variant-numeric: tabular-nums;
+}
+
+.metric__value--good {
+  color: var(--green);
+}
+
+.metric__value--warn {
+  color: var(--amber);
+}
+
+.metric__note {
+  margin-top: 10px;
+  font-size: 11.5px;
+  color: var(--text-3);
+  line-height: 1.45;
+}
+
+.bar {
+  height: 3px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+  margin-top: 12px;
+}
+
+.bar__fill {
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--green);
+  transition: width var(--dur-panel) var(--ease);
+}
+
+.bar__fill--warn {
+  background: var(--amber);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th {
+  text-align: left;
+  padding: 12px 14px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.09em;
+  text-transform: lowercase;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 13px 14px;
+  border-top: 1px solid var(--line);
+  vertical-align: top;
+  color: var(--text-1);
+}
+
+.table tr:hover td {
+  background: var(--surface-3);
+  color: var(--text-0);
+}
+
+.table__scroll {
+  overflow-x: auto;
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+}
+
+/* A failed case is marked by a tinted first cell, not a red outline. */
+.case--fail td:first-child {
+  color: var(--rose);
+}
+
+.trace {
+  display: grid;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.trace__step {
+  position: relative;
+  padding: 13px 0 13px 24px;
+  color: var(--text-1);
+  line-height: 1.6;
+}
+
+.trace__step::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--line-strong);
+}
+
+.trace__step:last-child::before {
+  bottom: 50%;
+}
+
+.trace__step::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 19px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+}
+
+.trace__label {
+  color: var(--text-3);
+  font-size: 10.5px;
+  letter-spacing: 0.09em;
+  text-transform: lowercase;
+  display: block;
+  margin-bottom: 5px;
+}
+
+.score-bar {
+  display: flex;
+  height: 3px;
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.07);
+  min-width: 84px;
+}
+
+.score-bar span {
+  display: block;
+  height: 100%;
+}
+
+.score-bar__sem {
+  background: var(--green);
+}
+.score-bar__lex {
+  background: var(--blue);
+}
+.score-bar__rec {
+  background: var(--amber);
+}
+
+/* ---------------------------------------------------------- responsive */
+@media (max-width: 900px) {
+  .app {
+    grid-template-columns: 1fr;
+  }
+
+  .rail {
+    position: static;
+    height: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 16px;
+    overflow-x: auto;
+  }
+
+  .wordmark__sub,
+  .rail__foot {
+    display: none;
+  }
+
+  .nav {
+    flex-direction: row;
+  }
+
+  .nav__count {
+    display: none;
+  }
+
+  .main {
+    padding: 26px 18px 80px;
+  }
+
+  .dictation {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}

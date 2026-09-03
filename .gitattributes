@@ -1,0 +1,23 @@
+# Normalise line endings so a checkout on one platform still runs on another.
+#
+# The reason this file exists: docker-entrypoint.sh is executed by /bin/sh
+# inside a Linux container. If git checks it out with CRLF - which it will on a
+# Windows machine with core.autocrlf=true, the Windows default - the shebang
+# reads as "/bin/sh\r" and the container dies with "bad interpreter: no such
+# file or directory". The build succeeds; the container never starts.
+
+* text=auto
+
+# Must be LF regardless of the platform they are checked out on.
+*.sh            text eol=lf
+Dockerfile      text eol=lf
+docker-entrypoint.sh text eol=lf
+*.toml          text eol=lf
+
+# Data and fixtures: keep byte-identical so the corpus hash stays reproducible.
+*.jsonl         text eol=lf
+*.json          text eol=lf
+
+# Never touched.
+*.png           binary
+*.db            binary

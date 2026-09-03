@@ -1,0 +1,451 @@
+{
+  "engine": {
+    "provider": "heuristic",
+    "model": "heuristic"
+  },
+  "records": 40,
+  "overall": {
+    "recall": 0.625,
+    "precision": 0.7143,
+    "exact_records": 27,
+    "silence_correct": 9,
+    "silence_total": 10
+  },
+  "by_type": {
+    "fact": {
+      "expected": 6,
+      "produced": 2,
+      "hits": 2,
+      "recall": 0.3333,
+      "precision": 1.0
+    },
+    "preference": {
+      "expected": 6,
+      "produced": 2,
+      "hits": 2,
+      "recall": 0.3333,
+      "precision": 1.0
+    },
+    "event": {
+      "expected": 8,
+      "produced": 8,
+      "hits": 7,
+      "recall": 0.875,
+      "precision": 0.875
+    },
+    "task": {
+      "expected": 7,
+      "produced": 6,
+      "hits": 5,
+      "recall": 0.7143,
+      "precision": 0.8333
+    },
+    "episode": {
+      "expected": 5,
+      "produced": 10,
+      "hits": 4,
+      "recall": 0.8,
+      "precision": 0.4
+    }
+  },
+  "cases": [
+    {
+      "id": "held_001",
+      "text": "Call with Dev pushed, now Thursday 3.",
+      "expected": [
+        "event"
+      ],
+      "got": [
+        "event"
+      ],
+      "passed": true
+    },
+    {
+      "id": "held_002",
+      "text": "Moving the Halo sync to Monday 9.",
+      "expected": [
+        "event"
+      ],
+      "got": [
+        "event"
+      ],
+      "passed": true
+    },
+    {
+      "id": "held_003",
+      "text": "Anya wants 30 mins Friday morning re: billing.",
+      "expected": [
+        "event"
+      ],
+      "got": [
+        "event"
+      ],
+      "passed": true
+    },
+    {
+      "id": "held_004",
+      "text": "Retro's on Tuesday now, not Wednesday.",
+      "expected": [
+        "event"
+      ],
+      "got": [
+        "event"
+      ],
+      "passed": true
+    },
+    {
+      "id": "held_005",
+      "text": "Booked Reza for a walkthrough next Thursday 2pm.",
+      "expected": [
+        "event"
+      ],
+      "got": [
+        "event"
+      ],
+      "passed": true
+    },
+    {
+      "id": "held_006",
+      "text": "Skip standup tomorrow, Priya's out.",
+      "expected": [
+        "event"
+      ],
+      "got": [
+        "event"
+      ],
+      "passed": true
+    },
+    {
+      "id": "held_007",
+      "text": "Design crit Wed 11, calendar invite sent.",
+      "expected": [
+        "event"
+      ],
+      "got": [
+        "episode"
+      ],
+      "passed": false
+    },
+    {
+      "id": "held_008",
+      "text": "Send Anya the migration plan before Friday.",
+      "expected": [
+        "task"
+      ],
+      "got": [
+        "task"
+      ],
+      "passed": true
+    },
+    {
+      "id": "held_009",
+      "text": "Owe Reza the postmortem draft.",
+      "expected": [
+        "task"
+      ],
+      "got": [
+        "task"
+      ],
+      "passed": true
+    },
+    {
+      "id": "held_010",
+      "text": "Don't forget to sign off Kai's expenses this week.",
+      "expected": [
+        "task"
+      ],
+      "got": [
+        "task"
+      ],
+      "passed": true
+    },
+    {
+      "id": "held_011",
+      "text": "Need to get the pricing sheet over to Dev by Monday.",
+      "expected": [
+        "task"
+      ],
+      "got": [
+        "task"
+      ],
+      "passed": true
+    },
+    {
+      "id": "held_012",
+      "text": "Chase legal on the DPA, still nothing back.",
+      "expected": [
+        "task"
+      ],
+      "got": [
+        "episode"
+      ],
+      "passed": false
+    },
+    {
+      "id": "held_013",
+      "text": "Anya owns billing now, not Kai.",
+      "expected": [
+        "fact"
+      ],
+      "got": [
+        "fact"
+      ],
+      "passed": true
+    },
+    {
+      "id": "held_014",
+      "text": "Reza's the on-call lead this quarter.",
+      "expected": [
+        "fact"
+      ],
+      "got": [
+        "event"
+      ],
+      "passed": false
+    },
+    {
+      "id": "held_015",
+      "text": "Halo is Dev's project end to end.",
+      "expected": [
+        "fact"
+      ],
+      "got": [
+        "episode"
+      ],
+      "passed": false
+    },
+    {
+      "id": "held_016",
+      "text": "Priya moved over to infra in March.",
+      "expected": [
+        "fact"
+      ],
+      "got": [],
+      "passed": false
+    },
+    {
+      "id": "held_017",
+      "text": "Kai handles anything touching the payments gateway.",
+      "expected": [
+        "fact"
+      ],
+      "got": [
+        "fact"
+      ],
+      "passed": true
+    },
+    {
+      "id": "held_018",
+      "text": "Keep the changelog dry, no exclamation marks.",
+      "expected": [
+        "preference"
+      ],
+      "got": [
+        "episode"
+      ],
+      "passed": false
+    },
+    {
+      "id": "held_019",
+      "text": "Use bullet points for anything going to leadership.",
+      "expected": [
+        "preference"
+      ],
+      "got": [
+        "preference"
+      ],
+      "passed": true
+    },
+    {
+      "id": "held_020",
+      "text": "My standups should be three lines, not paragraphs.",
+      "expected": [
+        "preference"
+      ],
+      "got": [
+        "preference"
+      ],
+      "passed": true
+    },
+    {
+      "id": "held_021",
+      "text": "Write to customers plainly, skip the hedging.",
+      "expected": [
+        "preference"
+      ],
+      "got": [
+        "episode"
+      ],
+      "passed": false
+    },
+    {
+      "id": "held_022",
+      "text": "Never open an email with 'I hope this finds you well'.",
+      "expected": [
+        "preference"
+      ],
+      "got": [
+        "episode"
+      ],
+      "passed": false
+    },
+    {
+      "id": "held_023",
+      "text": "Short subject lines, always.",
+      "expected": [
+        "preference"
+      ],
+      "got": [],
+      "passed": false
+    },
+    {
+      "id": "held_024",
+      "text": "Talked to Reza about the outage postmortem.",
+      "expected": [
+        "episode"
+      ],
+      "got": [
+        "episode"
+      ],
+      "passed": true
+    },
+    {
+      "id": "held_025",
+      "text": "Went over pricing with Anya.",
+      "expected": [
+        "episode"
+      ],
+      "got": [
+        "episode"
+      ],
+      "passed": true
+    },
+    {
+      "id": "held_026",
+      "text": "Dev raised concerns about the Halo timeline.",
+      "expected": [
+        "episode"
+      ],
+      "got": [
+        "episode"
+      ],
+      "passed": true
+    },
+    {
+      "id": "held_027",
+      "text": "Kai flagged the gateway latency again.",
+      "expected": [
+        "episode"
+      ],
+      "got": [],
+      "passed": false
+    },
+    {
+      "id": "held_028",
+      "text": "Caught up with Priya on the infra migration.",
+      "expected": [
+        "episode"
+      ],
+      "got": [
+        "episode"
+      ],
+      "passed": true
+    },
+    {
+      "id": "held_029",
+      "text": "Anya's taking over billing, and I owe her the handover doc by Friday.",
+      "expected": [
+        "fact",
+        "task"
+      ],
+      "got": [
+        "task"
+      ],
+      "passed": false
+    },
+    {
+      "id": "held_030",
+      "text": "Moved the Halo review to Thursday 4 and told Dev to bring the numbers.",
+      "expected": [
+        "event",
+        "task"
+      ],
+      "got": [
+        "event"
+      ],
+      "passed": false
+    },
+    {
+      "id": "held_031",
+      "text": "Right, where was I.",
+      "expected": [],
+      "got": [],
+      "passed": true
+    },
+    {
+      "id": "held_032",
+      "text": "Testing, testing.",
+      "expected": [],
+      "got": [],
+      "passed": true
+    },
+    {
+      "id": "held_033",
+      "text": "Hang on, let me pull that up.",
+      "expected": [],
+      "got": [],
+      "passed": true
+    },
+    {
+      "id": "held_034",
+      "text": "Ignore all that.",
+      "expected": [],
+      "got": [],
+      "passed": true
+    },
+    {
+      "id": "held_035",
+      "text": "Uh, yeah, so, anyway.",
+      "expected": [],
+      "got": [],
+      "passed": true
+    },
+    {
+      "id": "held_036",
+      "text": "Hi, thanks for getting back to me, I'll take a look this afternoon.",
+      "expected": [],
+      "got": [
+        "task"
+      ],
+      "passed": false
+    },
+    {
+      "id": "held_037",
+      "text": "Can you hear me okay.",
+      "expected": [],
+      "got": [],
+      "passed": true
+    },
+    {
+      "id": "held_038",
+      "text": "Actually never mind.",
+      "expected": [],
+      "got": [],
+      "passed": true
+    },
+    {
+      "id": "held_039",
+      "text": "Let me start that again.",
+      "expected": [],
+      "got": [],
+      "passed": true
+    },
+    {
+      "id": "held_040",
+      "text": "One sec.",
+      "expected": [],
+      "got": [],
+      "passed": true
+    }
+  ]
+}

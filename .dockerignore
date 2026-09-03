@@ -1,0 +1,12 @@
+# Keep the build context small and the image clean.
+**/node_modules
+**/__pycache__
+**/*.pyc
+.venv
+.git
+.env
+data/*.db
+data/*.db-shm
+data/*.db-wal
+frontend/dist
+evaluation/results/run_*.json

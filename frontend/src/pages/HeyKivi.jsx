@@ -1,0 +1,598 @@
+/**
+ * Screen 2 — Hey Kivi.
+ *
+ * The product itself: a question goes in, an answer comes back, and the
+ * memories behind it are named.
+ *
+ * The screen is built around one idea — an answer is not just text, it is a
+ * *claim with a status*. Three claims are possible and they mean very different
+ * things, so each gets its own colour, icon and wording before you read a word
+ * of the answer:
+ *
+ *   grounded     Kivi found support and is telling you what it knows
+ *   not in       Kivi looked and has nothing — it is refusing, not failing
+ *     history
+ *   conflicting  Kivi holds two live answers and will not pick one for you
+ *
+ * Confidence sits on the answer rather than buried in diagnostics, right next
+ * to the independent support check — deliberately side by side, because they
+ * disagree sometimes and the disagreement is the informative part.
+ *
+ * Sources are collapsed by default. On a question that used four memories the
+ * expanded list is a wall of text, and the count is usually all you want.
+ */
+
+import { useEffect, useRef, useState } from "react";
+import { api, formatPercent, formatStamp } from "../services/api";
+import { ErrorBanner, PageHead, Pill, Spinner, TypePill } from "../components/ui";
+
+export default function HeyKivi({ onRefresh }) {
+  const [turns, setTurns] = useState([]);
+  const [question, setQuestion] = useState("");
+  const [asking, setAsking] = useState(false);
+  // "ask" queries memory; "dictate" adds to it. Both live on this screen
+  // because Hey Kivi is meant to be the one place you talk to Kivi — dictation
+  // is a thing you do *inside* the conversation, not a separate destination.
+  const [mode, setMode] = useState("ask");
+  const [application, setApplication] = useState("Notes");
+  // Past turns are on the server - every question is logged with its answer and
+  // its retrieval - but they are not pulled in automatically. Reopening the
+  // screen into somebody else's half-finished conversation is disorienting, and
+  // a restored turn is not free to render. So it is a button.
+  const [earlier, setEarlier] = useState(null); // null = not checked yet
+  const [loadingEarlier, setLoadingEarlier] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [error, setError] = useState(null);
+  const endRef = useRef(null);
+  const inputRef = useRef(null);
+  // StrictMode runs mount effects twice in development. Without this the
+  // deep-linked question would be asked - and billed - twice.
+  const deepLinked = useRef(false);
+
+  useEffect(() => {
+    api.suggestions().then(setSuggestions).catch(() => setSuggestions([]));
+    api.queryAnalytics().then(setStats).catch(() => setStats(null));
+    // Only the count, so the button can say how much there is - or not appear.
+    api.history(50).then((rows) => setEarlier(rows.length)).catch(() => setEarlier(0));
+
+    // A question can be deep-linked: #/kivi?q=When%20is%20my%20meeting…
+    // Useful for sharing a specific result, and for pointing a reviewer at one.
+    const query = window.location.hash.split("?")[1];
+    const q = query ? new URLSearchParams(query).get("q") : null;
+    if (q && !deepLinked.current) {
+      deepLinked.current = true;
+      ask(q);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [turns, asking]);
+
+  async function ask(text) {
+    const trimmed = (text ?? question).trim();
+    if (!trimmed || asking) return;
+    setQuestion("");
+    setError(null);
+    setAsking(true);
+    setTurns((prev) => [...prev, { role: "user", text: trimmed }]);
+    try {
+      const answer = await api.ask(trimmed);
+      setTurns((prev) => [...prev, { role: "kivi", answer }]);
+      api.queryAnalytics().then(setStats).catch(() => {});
+    } catch (err) {
+      setError(err);
+      setTurns((prev) => prev.slice(0, -1));
+      setQuestion(trimmed);
+    } finally {
+      setAsking(false);
+      inputRef.current?.focus();
+    }
+  }
+
+  async function dictate() {
+    const text = question.trim();
+    if (!text || asking) return;
+    setQuestion("");
+    setError(null);
+    setAsking(true);
+    setTurns((prev) => [...prev, { role: "user", text, dictation: true, application }]);
+    try {
+      const created = await api.addTranscript({
+        // The corpus stores a raw recogniser pass alongside the formatted text.
+        // Typed input has no recogniser, so we approximate one rather than
+        // pretend the two are identical.
+        raw_asr: text.toLowerCase().replace(/[.,!?;:]/g, ""),
+        formatted_text: text,
+        timestamp: new Date().toISOString(),
+        application,
+      });
+      setTurns((prev) => [...prev, { role: "learned", transcript: created }]);
+      onRefresh?.();
+    } catch (err) {
+      setError(err);
+      setTurns((prev) => prev.slice(0, -1));
+      setQuestion(text);
+    } finally {
+      setAsking(false);
+      inputRef.current?.focus();
+    }
+  }
+
+  async function loadEarlier() {
+    if (loadingEarlier) return;
+    setLoadingEarlier(true);
+    try {
+      const rows = await api.history(50);
+      // The log is newest-first; a conversation reads oldest-first. Each row
+      // becomes the two turns it originally was.
+      const restored = rows
+        .slice()
+        .reverse()
+        .flatMap((row) => [
+          { role: "user", text: row.question },
+          { role: "kivi", answer: row, restored: true },
+        ]);
+      setTurns((prev) => [...restored, ...prev]);
+      setEarlier(0);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setLoadingEarlier(false);
+    }
+  }
+
+  const started = turns.length > 0 || asking;
+  const dictateMode = mode === "dictate";
+
+  return (
+    <div className="page page--chat">
+      <PageHead
+        eyebrow="screen 2 · hey kivi"
+        title="Ask, and see why"
+        lede="Kivi answers only from what it has learned in your dictations. Every answer shows the memories behind it — and says so plainly when your history does not contain the answer."
+      />
+
+      <ErrorBanner error={error} />
+
+      {!started ? (
+        <Welcome
+          suggestions={suggestions}
+          onPick={ask}
+          stats={stats}
+          earlier={earlier}
+          onEarlier={loadEarlier}
+          loadingEarlier={loadingEarlier}
+        />
+      ) : null}
+
+      {started && earlier ? (
+        <div className="chat__earlier">
+          <button className="chip" onClick={loadEarlier} disabled={loadingEarlier}>
+            {loadingEarlier ? <Spinner /> : null} show {earlier} earlier question
+            {earlier === 1 ? "" : "s"}
+          </button>
+        </div>
+      ) : null}
+
+      <div className="chat">
+        {turns.map((turn, index) =>
+          turn.role === "user" ? (
+            <div className="turn turn--user" key={index}>
+              <div className="turn__bubble">
+                {turn.dictation ? (
+                  <span className="turn__tag mono">dictated · {turn.application}</span>
+                ) : null}
+                {turn.text}
+              </div>
+            </div>
+          ) : turn.role === "learned" ? (
+            <Learned key={index} transcript={turn.transcript} />
+          ) : (
+            <Answer key={index} answer={turn.answer} restored={turn.restored} />
+          ),
+        )}
+        {asking ? (
+          <div className="turn turn--kivi">
+            <KiviMark />
+            <div className="thinking">
+              <Spinner />
+              <span>Searching your memory…</span>
+            </div>
+          </div>
+        ) : null}
+        <div ref={endRef} />
+      </div>
+
+      <div className="ask">
+        <form
+          className="ask__row"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (dictateMode) dictate();
+            else ask();
+          }}
+        >
+          <div className="mode" role="group" aria-label="What to do with what you type">
+            <button
+              type="button"
+              className="mode__btn"
+              aria-pressed={!dictateMode}
+              onClick={() => setMode("ask")}
+            >
+              Ask
+            </button>
+            <button
+              type="button"
+              className="mode__btn"
+              aria-pressed={dictateMode}
+              onClick={() => setMode("dictate")}
+            >
+              Dictate
+            </button>
+          </div>
+
+          <input
+            ref={inputRef}
+            className="field ask__field"
+            placeholder={
+              dictateMode
+                ? "Say something about your work — Kivi decides what to keep…"
+                : "Ask about your work…"
+            }
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            autoFocus
+          />
+
+          {dictateMode ? (
+            <select
+              className="field ask__app"
+              value={application}
+              onChange={(e) => setApplication(e.target.value)}
+              aria-label="Which application you are dictating into"
+            >
+              {["Notes", "Slack", "Mail", "Linear", "Docs"].map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+            </select>
+          ) : null}
+
+          <button className="btn ask__send" type="submit" disabled={asking || !question.trim()}>
+            {asking ? <Spinner /> : dictateMode ? "Dictate" : "Ask"}
+          </button>
+        </form>
+
+        {started && !dictateMode && suggestions.length ? (
+          <div className="suggestions">
+            {suggestions.slice(0, 4).map((s) => (
+              <button key={s} className="suggestion" onClick={() => ask(s)} disabled={asking}>
+                {s}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/* --------------------------------------------------------------- identity */
+function KiviMark() {
+  return (
+    <span className="kivi-mark" aria-hidden="true">
+      <span className="kivi-mark__dot" />
+    </span>
+  );
+}
+
+/* ---------------------------------------------------------------- welcome */
+function Welcome({ suggestions, onPick, stats, earlier, onEarlier, loadingEarlier }) {
+  // Grouped by what each question *demonstrates*, so the first thing a new
+  // reader learns is that Kivi can also refuse — the behaviour the product is
+  // really built around.
+  const groups = [
+    { label: "Recall", match: /prepare|discussing|say about|owe/i },
+    { label: "Scheduling", match: /when is my|when is the/i },
+    { label: "Drafting", match: /draft|message/i },
+    { label: "Watch it refuse", match: /birthday/i },
+  ]
+    .map((g) => ({ ...g, picks: suggestions.filter((s) => g.match.test(s)) }))
+    .filter((g) => g.picks.length);
+
+  return (
+    <div className="welcome">
+      <div className="welcome__intro">
+        <KiviMark />
+        <p>
+          Ask me about the people you work with, what you have coming up, or what you still
+          owe someone. I'll only tell you what you've actually said — and I'll say so when
+          I don't know.
+        </p>
+      </div>
+
+      {groups.length ? (
+        <div className="welcome__groups">
+          {groups.map((g) => (
+            <div className="welcome__group" key={g.label}>
+              <div className="welcome__group-label">{g.label}</div>
+              {g.picks.slice(0, 2).map((s) => (
+                <button key={s} className="welcome__pick" onClick={() => onPick(s)}>
+                  {s}
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {earlier ? (
+        <div className="welcome__earlier">
+          <button className="chip" onClick={onEarlier} disabled={loadingEarlier}>
+            {loadingEarlier ? <Spinner /> : null} show {earlier} earlier question
+            {earlier === 1 ? "" : "s"}
+          </button>
+        </div>
+      ) : null}
+
+      {stats?.summary?.total ? (
+        <div className="welcome__stats">
+          <span>
+            <b>{stats.summary.total}</b> asked
+          </span>
+          <span>
+            <b>{stats.summary.abstained}</b> refused honestly
+          </span>
+          <span>
+            <b>{formatPercent(stats.summary.supported_rate, 0)}</b> grounded
+          </span>
+          <span>
+            <b>{Math.round(stats.summary.avg_total_latency_ms)} ms</b> average
+          </span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------------- answer */
+const SHAPES = {
+  abstained: { tone: "warn", icon: "◌", label: "Not in your history" },
+  conflict: { tone: "rose", icon: "!", label: "Conflicting memories" },
+  unsupported: { tone: "rose", icon: "!", label: "Unsupported" },
+  grounded: { tone: "good", icon: "✓", label: "Grounded" },
+};
+
+function Answer({ answer, restored = false }) {
+  const [showSources, setShowSources] = useState(false);
+  const [showWorking, setShowWorking] = useState(false);
+  const d = answer.diagnostics || {};
+
+  const key = answer.abstained
+    ? "abstained"
+    : answer.conflict
+      ? "conflict"
+      : answer.supported
+        ? "grounded"
+        : "unsupported";
+  const shape = SHAPES[key];
+  const used = answer.used_memory_ids.length;
+  const confidence = answer.confidence ?? 0;
+
+  return (
+    <div className="turn turn--kivi">
+      <KiviMark />
+
+      <div className="answer">
+        {/* the status of the claim, before the words of it */}
+        <div className={`verdict verdict--${shape.tone}`}>
+          <span className="verdict__icon">{shape.icon}</span>
+          <span className="verdict__label">
+            {shape.label}
+            {key === "grounded" ? ` in ${used} memor${used === 1 ? "y" : "ies"}` : ""}
+          </span>
+
+          <span
+            className="verdict__meter"
+            title="The answering model's own estimate. Self-reported and not calibrated — the badge on the left is the independent check."
+          >
+            <span className="verdict__meter-track">
+              <span
+                className="verdict__meter-fill"
+                style={{ width: `${Math.round(confidence * 100)}%` }}
+              />
+            </span>
+            <span className="verdict__meter-value mono">{confidence.toFixed(2)}</span>
+          </span>
+        </div>
+
+        <p className="answer__body">{answer.answer}</p>
+
+        <div className="answer__actions">
+          {answer.sources?.length ? (
+            <button className="chip" onClick={() => setShowSources((v) => !v)}>
+              {showSources ? "Hide" : "Show"} {answer.sources.length} source
+              {answer.sources.length === 1 ? "" : "s"}
+            </button>
+          ) : null}
+          <button className="chip" onClick={() => setShowWorking((v) => !v)}>
+            {showWorking ? "Hide working" : "Show working"}
+          </button>
+          <span className="answer__meta mono">
+            {restored ? "earlier · " : ""}
+            {Number.isFinite(d.total_latency_ms) ? `${Math.round(d.total_latency_ms)} ms` : ""}
+            {d.total_tokens ? ` · ${d.total_tokens} tok` : ""}
+            {d.estimated_cost_usd ? ` · $${d.estimated_cost_usd.toFixed(4)}` : ""}
+            {d.model ? ` · ${d.model}` : ""}
+          </span>
+        </div>
+
+        {showSources && answer.sources?.length ? (
+          <div className="sources">
+            {answer.sources.map((source) => (
+              <div className="source" key={source.memory_id}>
+                {/* A negative id is a rescued dictation, not a memory — Kivi
+                    never learned it, so label it rather than showing "#-31". */}
+                <div className="source__id mono">
+                  {source.memory_id < 0 ? `dictation #${-source.memory_id}` : `#${source.memory_id}`}
+                </div>
+                <div>
+                  <div className="source__content">{source.memory_content}</div>
+                  {source.excerpt ? <div className="source__excerpt">“{source.excerpt}”</div> : null}
+                  <div className="source__meta mono">
+                    {formatStamp(source.timestamp)}
+                    {source.application ? ` · ${source.application}` : ""}
+                    {source.transcript_id ? ` · transcript #${source.transcript_id}` : ""}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {showWorking ? <Working answer={answer} /> : null}
+      </div>
+    </div>
+  );
+}
+
+function Working({ answer }) {
+  return (
+    <div className="working">
+      <div className="working__block">
+        <div className="working__label">Why this answer</div>
+        <p className="small" style={{ color: "var(--text-1)" }}>
+          {answer.reasoning}
+        </p>
+      </div>
+
+      <div className="working__block">
+        <div className="working__label">
+          Retrieval — {answer.retrieval_detail?.length || 0} candidates ranked
+        </div>
+        <div className="table__scroll">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Memory</th>
+                <th>Type</th>
+                <th>Score</th>
+                <th>Signals</th>
+                <th>Used</th>
+              </tr>
+            </thead>
+            <tbody>
+              {answer.retrieval_detail?.map((row) => (
+                <tr key={row.memory_id}>
+                  <td style={{ maxWidth: 340 }}>
+                    <span className="mono tiny muted">#{row.memory_id}</span> {row.content}
+                  </td>
+                  <td>
+                    <TypePill type={row.type} />
+                  </td>
+                  <td className="mono">{row.score.toFixed(3)}</td>
+                  <td>
+                    <ScoreBar row={row} />
+                    <div className="mono tiny muted" style={{ marginTop: 4 }}>
+                      sem {row.semantic.toFixed(2)} · lex {row.lexical.toFixed(2)} · rec{" "}
+                      {row.recency.toFixed(2)}
+                    </div>
+                  </td>
+                  <td>
+                    {answer.used_memory_ids.includes(row.memory_id) ? (
+                      <Pill tone="good">yes</Pill>
+                    ) : (
+                      <span className="muted tiny">no</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ScoreBar({ row }) {
+  const total = Math.max(0.0001, row.semantic + row.lexical + row.recency);
+  const pct = (v) => `${((v / total) * 100).toFixed(1)}%`;
+  return (
+    <div className="score-bar" title="semantic / lexical / recency">
+      <span className="score-bar__sem" style={{ width: pct(row.semantic) }} />
+      <span className="score-bar__lex" style={{ width: pct(row.lexical) }} />
+      <span className="score-bar__rec" style={{ width: pct(row.recency) }} />
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- learned */
+/**
+ * Kivi's reply to a dictation: what it took from what you just said.
+ *
+ * This is the moment the whole product turns on — you say something, and Kivi
+ * tells you, immediately and in your own words, what it will now remember. It
+ * also tells you when it decided to remember *nothing*, with the reason, which
+ * is the more important half: a memory system you cannot see deciding is one
+ * you cannot trust. Every memory shown here is answerable the moment it lands.
+ */
+function Learned({ transcript }) {
+  const memories = (transcript.memories || []).filter((m) => m.status !== "REJECTED");
+  const rejected = (transcript.memories || []).filter((m) => m.status === "REJECTED");
+  const extraction = transcript.extraction || {};
+  const ignored = !memories.length;
+
+  return (
+    <div className="turn turn--kivi">
+      <KiviMark />
+
+      <div className="answer">
+        <div className={`verdict verdict--${ignored ? "muted" : "good"}`}>
+          <span className="verdict__icon">{ignored ? "◌" : "✓"}</span>
+          <span className="verdict__label">
+            {ignored
+              ? "Nothing worth keeping"
+              : `Remembered ${memories.length} thing${memories.length === 1 ? "" : "s"}`}
+          </span>
+          <span className="verdict__meter-value mono">#{transcript.id}</span>
+        </div>
+
+        {extraction.rationale ? <p className="answer__body">{extraction.rationale}</p> : null}
+
+        {memories.length ? (
+          <div className="learned">
+            {memories.map((memory) => (
+              <div className="learned__row" key={memory.id}>
+                <TypePill type={memory.type} />
+                <div className="learned__text">{memory.content}</div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {rejected.length ? (
+          <div className="learned__note small">
+            {rejected.length} below the confidence threshold, kept as not-trusted rather than
+            stored as fact.
+          </div>
+        ) : null}
+
+        <div className="answer__actions">
+          <span className="answer__meta mono">
+            {extraction.provider ? `${extraction.provider} · ` : ""}
+            {extraction.latency_ms ? `${Math.round(extraction.latency_ms)} ms · ` : ""}
+            {extraction.input_tokens
+              ? `${extraction.input_tokens}in/${extraction.output_tokens}out · `
+              : ""}
+            saved to transcript #{transcript.id}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}

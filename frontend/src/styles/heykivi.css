@@ -1,0 +1,537 @@
+/* ===========================================================================
+ * Hey Kivi — the conversation surface.
+ *
+ * A turn is a speaker plus a claim. Kivi's turns carry a mark on the left so
+ * the column reads as one voice; yours sit right, in a bubble, so the exchange
+ * is legible at a glance without either side being loud.
+ *
+ * The verdict strip above each answer is the important piece: an answer is a
+ * claim with a status, and the status has to be readable before the prose.
+ * ======================================================================== */
+
+/* ------------------------------------------------------------ identity */
+.kivi-mark {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  margin-top: 2px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.kivi-mark__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-pill);
+  background: var(--green);
+}
+
+/* --------------------------------------------------------------- turns */
+.chat {
+  display: grid;
+  align-content: start;
+  gap: 30px;
+  margin-bottom: 30px;
+  flex: 1;
+}
+
+.turn {
+  display: flex;
+  gap: 14px;
+}
+
+.turn--user {
+  justify-content: flex-end;
+}
+
+.turn__bubble {
+  max-width: min(560px, 80%);
+  padding: 12px 18px;
+  border-radius: var(--r-lg) var(--r-lg) var(--r-sm) var(--r-lg);
+  background: var(--surface-3);
+  color: var(--text-0);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.turn--kivi {
+  align-items: flex-start;
+}
+
+.thinking {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 13.5px;
+  color: var(--text-2);
+}
+
+/* ------------------------------------------------------------- answer */
+.answer {
+  flex: 1;
+  min-width: 0;
+  max-width: 780px;
+  animation: rise var(--dur-panel) var(--ease) both;
+}
+
+/* The verdict strip: icon + words + the model's own confidence, side by side
+   on purpose. The badge is an independent check of grounding; the meter is the
+   model grading itself. Seeing them disagree is the useful case. */
+.verdict {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 14px 7px 11px;
+  border-radius: var(--r-pill);
+  width: fit-content;
+  max-width: 100%;
+  margin-bottom: 14px;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.verdict--good {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.verdict--warn {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.verdict--rose {
+  background: var(--rose-soft);
+  color: var(--rose);
+}
+
+.verdict__icon {
+  font-size: 11px;
+  opacity: 0.9;
+}
+
+.verdict__label {
+  white-space: nowrap;
+}
+
+.verdict__meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 6px;
+  padding-left: 12px;
+  border-left: 1px solid currentColor;
+  opacity: 0.75;
+}
+
+.verdict__meter-track {
+  width: 42px;
+  height: 3px;
+  border-radius: var(--r-pill);
+  background: currentColor;
+  opacity: 0.28;
+  position: relative;
+  overflow: hidden;
+}
+
+.verdict__meter-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: currentColor;
+  opacity: 1;
+  border-radius: var(--r-pill);
+}
+
+.verdict__meter-value {
+  font-size: 11px;
+}
+
+.answer__body {
+  font-family: var(--font-display);
+  font-size: clamp(19px, 1.75vw, 22px);
+  line-height: 1.5;
+  letter-spacing: -0.015em;
+  color: var(--text-0);
+  white-space: pre-wrap;
+  font-variation-settings: "opsz" 40, "SOFT" 48, "WONK" 0;
+}
+
+.answer__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.chip {
+  padding: 5px 13px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background var(--dur-micro) var(--ease),
+    color var(--dur-micro) var(--ease);
+}
+
+.chip:hover {
+  background: var(--surface-3);
+  color: var(--text-0);
+}
+
+.answer__meta {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+/* ------------------------------------------------------------- sources */
+.sources {
+  margin-top: 14px;
+  padding: 4px 18px 6px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  animation: rise var(--dur-small) var(--ease) both;
+  border: 1px solid var(--edge);
+}
+
+.source {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 14px;
+  padding: 13px 0;
+  font-size: 13px;
+}
+
+.source + .source {
+  border-top: 1px solid var(--line);
+}
+
+.source__id {
+  font-size: 11.5px;
+  color: var(--text-3);
+  padding-top: 2px;
+}
+
+.source__content {
+  color: var(--text-0);
+  line-height: 1.5;
+}
+
+.source__excerpt {
+  margin-top: 6px;
+  padding-left: 12px;
+  border-left: 1px solid var(--line-strong);
+  color: var(--text-1);
+  font-style: italic;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.source__meta {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+/* ------------------------------------------------------------- working */
+.working {
+  margin-top: 14px;
+  padding: 18px;
+  border-radius: var(--r-md);
+  background: var(--surface-1);
+  display: grid;
+  gap: 20px;
+  animation: rise var(--dur-small) var(--ease) both;
+}
+
+.working__label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.11em;
+  text-transform: lowercase;
+  color: var(--text-3);
+  margin-bottom: 10px;
+}
+
+/* ------------------------------------------------------------- welcome */
+.welcome {
+  margin-bottom: 34px;
+}
+
+.welcome__intro {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  max-width: 660px;
+  margin-bottom: 28px;
+}
+
+.welcome__intro p {
+  font-family: var(--font-body);
+  font-size: clamp(16px, 1.4vw, 17.5px);
+  line-height: 1.62;
+  letter-spacing: -0.01em;
+  color: var(--text-1);
+  font-variation-settings: "opsz" 40, "SOFT" 48, "WONK" 0;
+}
+
+.welcome__groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 12px;
+}
+
+.welcome__group {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: 16px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px solid var(--edge);
+}
+
+.welcome__group-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: lowercase;
+  color: var(--text-3);
+  margin-bottom: 4px;
+}
+
+.welcome__pick {
+  text-align: left;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-1);
+  font-size: 13.5px;
+  line-height: 1.45;
+  cursor: pointer;
+  transition:
+    background var(--dur-micro) var(--ease),
+    color var(--dur-micro) var(--ease);
+}
+
+.welcome__pick:hover {
+  background: var(--surface-3);
+  color: var(--text-0);
+}
+
+.welcome__stats {
+  display: flex;
+  gap: 22px;
+  flex-wrap: wrap;
+  margin-top: 22px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.welcome__stats b {
+  font-weight: 500;
+  color: var(--text-1);
+}
+
+/* ----------------------------------------------------------- composer */
+.ask {
+  position: sticky;
+  bottom: 0;
+  padding: 22px 0 4px;
+  background: linear-gradient(180deg, transparent, var(--stage) 34%);
+}
+
+.ask__row {
+  display: flex;
+  gap: 10px;
+}
+
+.ask__field {
+  flex: 1 1 auto;
+  min-width: 0;
+  border-radius: var(--r-pill);
+  padding: 15px 24px;
+  font-size: 15px;
+  background: var(--surface-2);
+}
+
+.ask__send {
+  padding-inline: 26px;
+}
+
+.suggestions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.suggestion {
+  padding: 6px 14px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--surface-1);
+  color: var(--text-2);
+  font-size: 12.5px;
+  cursor: pointer;
+  transition:
+    background var(--dur-micro) var(--ease),
+    color var(--dur-micro) var(--ease);
+}
+
+.suggestion:hover {
+  background: var(--surface-3);
+  color: var(--text-0);
+}
+
+@media (max-width: 620px) {
+  .turn__bubble {
+    max-width: 88%;
+  }
+
+  .verdict {
+    flex-wrap: wrap;
+    border-radius: var(--r-md);
+  }
+
+  .verdict__meter {
+    border-left: 0;
+    padding-left: 0;
+    margin-left: 0;
+  }
+
+  .source {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
+
+
+/* ===================== dictating from inside the conversation ============ */
+/* Ask / Dictate. A segmented pair rather than a toggle, because the two do
+   opposite things — one reads memory, the other writes it — and a switch
+   would not say which way is which. */
+.mode {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+}
+
+.mode__btn {
+  border: 0;
+  border-radius: var(--r-pill);
+  padding: 10px 16px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background var(--dur-micro) var(--ease),
+    color var(--dur-micro) var(--ease);
+}
+
+.mode__btn:hover {
+  color: var(--text-0);
+}
+
+.mode__btn[aria-pressed="true"] {
+  background: var(--surface-4);
+  color: var(--text-0);
+}
+
+/* The app picker is a small qualifier on the dictation, not a peer of it. It
+   was taking a field's worth of width and squeezing the thing you actually
+   type into, so it is capped narrow and the input keeps the rest. */
+.ask__app {
+  flex: 0 0 auto;
+  width: 104px;
+  border-radius: var(--r-pill);
+  padding: 12px 12px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.ask__app:hover {
+  color: var(--text-0);
+}
+
+/* Marks a bubble as something you said *to be remembered*, not asked. */
+.turn__tag {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+  color: var(--text-3);
+}
+
+.verdict--muted {
+  background: var(--surface-3);
+  color: var(--text-2);
+}
+
+/* What Kivi took from the dictation. */
+.learned {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.learned__row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.learned__text {
+  flex: 1;
+  min-width: 0;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--text-0);
+}
+
+.learned__note {
+  margin-top: 12px;
+  color: var(--text-2);
+}
+
+@media (max-width: 720px) {
+  .ask__row {
+    flex-wrap: wrap;
+  }
+  .ask__field {
+    order: -1;
+    flex-basis: 100%;
+  }
+}
+
+
+/* ------------------- picking the conversation back up ------------------- */
+.welcome__earlier {
+  margin-top: 22px;
+}
+
+/* Sits above the restored turns, where "load more" belongs in a transcript
+   that grows upward. */
+.chat__earlier {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 18px;
+}

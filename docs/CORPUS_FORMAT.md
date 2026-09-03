@@ -1,0 +1,142 @@
+# Corpus format
+
+The format for importing dictations into Kivi. This is what
+`scripts/import_corpus.py` and `POST /api/corpus/import` accept.
+
+---
+
+## File format
+
+**JSON Lines** — one JSON object per line, UTF-8, no trailing commas:
+
+```jsonl
+{"id": "tr_001", "raw_asr": "meeting rahul friday atlas pricing", "formatted_output": "Meeting with Rahul on Friday about Project Atlas pricing.", "timestamp": "2026-08-20T09:30:00", "application": "Slack", "metadata": {"workspace": "work"}}
+{"id": "tr_002", "raw_asr": "need send rahul revised numbers", "formatted_output": "I need to send Rahul the revised numbers before the meeting.", "timestamp": "2026-08-20T14:10:00", "application": "Notes"}
+```
+
+A **single JSON array** of the same objects is also accepted:
+
+```json
+[
+  { "id": "tr_001", "...": "..." },
+  { "id": "tr_002", "...": "..." }
+]
+```
+
+The importer detects which one it is from the first non-whitespace character.
+
+---
+
+## Fields
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `timestamp` | string | **yes** | ISO-8601, e.g. `2026-08-20T09:30:00`. A `Z` suffix or an offset is fine. |
+| `formatted_output` | string | **one of these two** | What Kivi typed — the polished text. `formatted_text` is accepted as an alias. |
+| `raw_asr` | string | **one of these two** | The unpolished speech recogniser output. |
+| `id` | string | recommended | Your identifier for the record. |
+| `application` | string | no | Where it was dictated: `Slack`, `Notes`, `Mail`, `Linear`, … |
+| `metadata` | object | no | Any JSON object. Stored and returned unchanged. |
+
+### Notes on each
+
+**`timestamp` — ordering matters.** Memory correction depends on it. "Actually,
+move it to 4 PM" can only supersede the 3 PM memory if it is timestamped later.
+Records are processed oldest-first regardless of the order they appear in the
+file.
+
+**`formatted_output` and `raw_asr`.** If only one is supplied, it is used for
+both. Supplying both is better: extraction reads the formatted text, and the raw
+ASR is kept for display and as a secondary signal for words the formatter may
+have changed.
+
+**`id`.** Re-importing the same `id` for the same user *updates* that record
+rather than creating a duplicate, so re-running an import is safe. Without an
+`id`, one is generated from the line number — which means a second import would
+create duplicates. Supply ids.
+
+**`metadata`.** Not interpreted, but preserved and returned by the API. The
+development corpus uses `{"workspace": "work", "category": "meeting"}`; the
+`category` field is used only by the corpus generator's own statistics.
+
+---
+
+## Validation
+
+Every record is validated before anything is written. Problems are reported with
+the line number and the import continues:
+
+```
+3 record(s) could not be read:
+  - line 12: 'timestamp' is not ISO-8601 ('20 August 2026'). Expected something like 2026-08-20T09:30:00
+  - line 44: needs at least one of 'formatted_output' or 'raw_asr'
+  - line 91: not valid JSON (Expecting ',' delimiter)
+```
+
+---
+
+## Importing
+
+```bash
+# replace everything, then extract memories
+python scripts/import_corpus.py reviewer_data.jsonl --reset --process
+
+# add to what is already stored, extract separately
+python scripts/import_corpus.py more_data.jsonl
+python scripts/process_corpus.py
+```
+
+Stop the API server first if it is running — SQLite will not let the file be
+replaced while another process holds it open.
+
+Over HTTP, `POST /api/corpus/upload` accepts the same file as a multipart
+upload, with `?process=true&reset=true` query parameters.
+
+---
+
+## What the system does not require
+
+There is no schema for *what a dictation is about*. Kivi does not need a
+`type`, a `topic`, an entity list, or any annotation: deciding what a dictation
+means, and whether any of it is worth remembering, is the system's job. The
+corpus is raw history.
+
+Nothing downstream is tuned to the development corpus. The suggested questions
+on the Hey Kivi screen, the People and Projects groupings on What Kivi Knows,
+and the entity vocabulary used to parse questions are all derived at runtime
+from whatever has been imported.
+
+---
+
+## Generating the development corpus
+
+The 500-record corpus in `data/development_corpus.jsonl` is produced by:
+
+```bash
+python scripts/generate_corpus.py
+```
+
+It is deterministic — a fixed seed, so the same 500 records and the same 52
+evaluation cases every time. The generator emits both files together, because
+an evaluation case asserting "the answer should be 4 PM" is only meaningful if
+the corpus really contains a 3 PM meeting that was really moved.
+
+Distribution:
+
+| Count | Kind |
+| --- | --- |
+| 150 | work / project conversations |
+| 100 | meetings |
+| 70 | people and relationship context |
+| 50 | preferences |
+| 40 | corrections and updates |
+| 40 | information spread across several transcripts |
+| 30 | irrelevant — nothing to remember |
+| 20 | ambiguous or conflicting |
+| **500** | |
+
+The `raw_asr` field is generated by degrading the formatted text the way a
+speech recogniser would: dropped function words, phonetic errors on proper
+nouns (`Rahul` → `rahool`, `Atlas` → `atlus`), and occasional doubled or
+clipped words. This keeps extraction and retrieval honest about the input they
+would really receive.

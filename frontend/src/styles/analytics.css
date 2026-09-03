@@ -1,0 +1,626 @@
+/* ===========================================================================
+ * Knowledge modal + Analytics screen.
+ *
+ * Same rules as the rest of the app: elevation by tone, no drop shadows, no
+ * drawn borders. Chart marks follow the data-viz spec — thin bars, 4px rounded
+ * data-ends anchored to the baseline, a 2px surface gap between adjacent fills,
+ * recessive axes, and text in text tokens rather than series colours.
+ * ======================================================================== */
+
+/* ==================== Knowledge: capped cards + expanded view ============ */
+.know-card__more {
+  margin-top: 14px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  color: var(--text-1);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background var(--dur-micro) var(--ease),
+    color var(--dur-micro) var(--ease);
+}
+
+.know-card__more:hover {
+  background: var(--surface-4);
+  color: var(--text-0);
+}
+
+/* A compact row inside a preview card: controls stay out of the way until the
+   card is opened in full. */
+.memory--compact {
+  padding: 10px 0;
+}
+
+.memory--compact .memory__text {
+  font-size: 13.5px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.memory--compact .memory__foot {
+  display: none;
+}
+
+/* ------------------------------------------------------------------ modal */
+/* ===================== The expanded card ("View all") ==================== */
+/*
+ * A reading surface, not a control panel. Opening Kenji shows thirty-one
+ * sentences, and the job of this panel is to let you *read* them — so the
+ * sentences carry the weight and everything else gets out of the way: the
+ * actions are text rather than buttons, the sections are labelled once in a
+ * quiet caption, and there is not a single pill on a row.
+ */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(16px, 5vh, 60px) 20px;
+  background: rgba(6, 9, 5, 0.7);
+  backdrop-filter: blur(4px);
+  animation: fade var(--dur-small) var(--ease) both;
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Narrower than it could be. Prose wants a measure, and 31 sentences set
+   across 760px is a worse read than the same 31 across 620. */
+.modal__panel {
+  width: min(620px, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-xl);
+  background: var(--surface-2);
+  overflow: hidden;
+  animation: lift var(--dur-panel) var(--ease) both;
+  border: 1px solid var(--edge);
+}
+
+@keyframes lift {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The head does not scroll away — with thirty rows below it, losing the name
+   you are reading about is disorienting. It sits on the same tone as the body
+   so it reads as the top of one sheet rather than a separate bar. */
+.modal__head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 28px clamp(24px, 4vw, 34px) 18px;
+  background: var(--surface-2);
+}
+
+.modal__heading {
+  min-width: 0;
+}
+
+.modal__title {
+  font-family: var(--font-display);
+  font-size: clamp(27px, 3vw, 33px);
+  letter-spacing: -0.026em;
+  line-height: 1.08;
+}
+
+.modal__sub {
+  margin-top: 4px;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--text-2);
+}
+
+.modal__summary {
+  margin-top: 12px;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+
+.modal__close {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--text-3);
+  font-size: 13px;
+  cursor: pointer;
+  transition:
+    background var(--dur-micro) var(--ease),
+    color var(--dur-micro) var(--ease);
+}
+
+.modal__close:hover,
+.modal__close:focus-visible {
+  background: var(--surface-4);
+  color: var(--text-0);
+  outline: none;
+}
+
+.modal__body {
+  overflow-y: auto;
+  padding: 4px clamp(24px, 4vw, 34px) 32px;
+  /* A soft fade at the foot so a long list visibly continues rather than
+     being sliced off by the panel edge. */
+  mask-image: linear-gradient(180deg, #000 calc(100% - 28px), transparent 100%);
+}
+
+.modal__section {
+  padding-top: 26px;
+}
+
+.modal__section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding-bottom: 2px;
+}
+
+/* Quiet. The heading is a signpost you read once per section, not a label
+   competing with every sentence under it. */
+.modal__section-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.13em;
+  text-transform: lowercase;
+  color: var(--text-3);
+}
+
+.modal__section-count {
+  font-size: 10px;
+  color: var(--text-3);
+  opacity: 0.7;
+}
+
+.modal__body .memory {
+  padding: 15px 0;
+}
+
+.modal__body .memory__text {
+  font-size: 15px;
+  line-height: 1.62;
+}
+
+/* Actions as text, not buttons. Thirty rows x two filled pills is sixty
+   competing shapes; the same two words in muted type disappear until wanted
+   and cost the reader nothing. */
+.modal__body .memory__foot {
+  gap: 16px;
+  margin-top: 7px;
+  opacity: 0.5;
+}
+
+.modal__body .memory:hover .memory__foot,
+.modal__body .memory:focus-within .memory__foot {
+  opacity: 1;
+}
+
+.modal__body .memory__foot .btn {
+  padding: 0;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 450;
+}
+
+.modal__body .memory__foot .btn:hover {
+  background: transparent;
+  color: var(--text-0);
+}
+
+.modal__body .memory__foot .btn--danger:hover {
+  color: var(--rose);
+}
+
+/* The editor is the exception: while correcting, the controls are the task. */
+.modal__body .memory--editing .memory__foot {
+  opacity: 1;
+}
+
+.modal__body .memory--editing .memory__foot .btn {
+  padding: 8px 14px;
+  background: var(--surface-4);
+}
+
+/* ========================= Screen 5 — Analytics ========================= */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 2px;
+  outline: 2px solid var(--stage);
+  outline-offset: -2px;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  /* The grid's own background fills any cell the tiles do not, so a row that
+     does not divide evenly reads as an unfilled slot rather than a hole
+     punched through to the page ground. The 2px gaps still show as seams. */
+  background: var(--surface-2);
+  margin-bottom: 22px;
+}
+
+.stat {
+  padding: 20px;
+  background: var(--surface-2);
+  border: 1px solid var(--edge);
+}
+
+.stat__label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.09em;
+  text-transform: lowercase;
+  color: var(--text-3);
+  margin-bottom: 10px;
+}
+
+.stat__value {
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 1;
+  letter-spacing: -0.032em;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat__value--good {
+  color: var(--green);
+}
+
+.stat__value--warn {
+  color: var(--amber);
+}
+
+.stat__note {
+  margin-top: 10px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-3);
+}
+
+.panel {
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  padding: clamp(20px, 2.4vw, 28px);
+  margin-bottom: 16px;
+  border: 1px solid var(--edge);
+}
+
+.panel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 16px;
+}
+
+.panel__head {
+  margin-bottom: 20px;
+}
+
+.panel__title {
+  font-family: var(--font-display);
+  font-size: 21px;
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+}
+
+.panel__sub {
+  max-width: 66ch;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-2);
+}
+
+/* ---- bar list: one hue, length is the encoding ------------------------- */
+.barlist {
+  display: grid;
+  gap: 9px;
+}
+
+.barlist__row {
+  display: grid;
+  grid-template-columns: minmax(96px, 150px) minmax(0, 1fr) 58px;
+  align-items: center;
+  gap: 14px;
+}
+
+.barlist__name {
+  font-size: 13px;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.barlist__track {
+  position: relative;
+  height: 10px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* flat against the origin, 4px rounded at the data end */
+.barlist__fill {
+  height: 100%;
+  border-radius: 2px 4px 4px 2px;
+  transition: width var(--dur-panel) var(--ease);
+}
+
+.barlist__tip {
+  position: absolute;
+  right: 0;
+  bottom: 16px;
+  padding: 4px 9px;
+  border-radius: var(--r-sm);
+  background: var(--surface-4);
+  color: var(--text-0);
+  font-size: 11.5px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.barlist__value {
+  font-size: 12.5px;
+  color: var(--text-2);
+  text-align: right;
+}
+
+/* ---- composition: 2px surface gaps between adjacent fills -------------- */
+.composition {
+  display: flex;
+  gap: 2px;
+  height: 14px;
+  margin-bottom: 18px;
+}
+
+.composition__seg {
+  border-radius: 3px;
+  min-width: 3px;
+  transition: opacity var(--dur-micro) var(--ease);
+  cursor: default;
+}
+
+.legend {
+  display: grid;
+  gap: 2px;
+}
+
+.legend__item {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) 56px 44px;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: 13px;
+}
+
+.legend__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+
+.legend__label {
+  color: var(--text-1);
+}
+
+.legend__value {
+  color: var(--text-0);
+  text-align: right;
+  font-size: 12.5px;
+}
+
+.legend__pct {
+  color: var(--text-3);
+  text-align: right;
+  font-size: 12px;
+}
+
+/* ---- trend ------------------------------------------------------------- */
+.trend__svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.trend__axis {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  fill: var(--text-3);
+}
+
+.trend__readout {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  font-size: 11.5px;
+  color: var(--text-1);
+}
+
+@media (max-width: 620px) {
+  .barlist__row {
+    grid-template-columns: minmax(80px, 1fr) 1.4fr 48px;
+    gap: 10px;
+  }
+
+  .legend__item {
+    grid-template-columns: 12px minmax(0, 1fr) 48px 40px;
+  }
+}
+
+/* A legend appears as soon as a second series does - identity is never
+   carried by colour alone. */
+.trend__legend {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.trend__key {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-1);
+}
+
+.trend__key i {
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.trend__key--dashed {
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.34) 0 4px,
+    transparent 4px 7px
+  );
+}
+
+/* ================= Per-page analytics strip ============================= */
+/* Collapsed by default: most visits are to read the content, not the stats. */
+.strip {
+  border-radius: var(--r-lg);
+  background: var(--surface-1);
+  margin-bottom: 18px;
+  overflow: hidden;
+}
+
+.strip__toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 18px;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--dur-micro) var(--ease);
+}
+
+.strip__toggle:hover {
+  color: var(--text-0);
+}
+
+.strip--open .strip__toggle {
+  color: var(--text-0);
+}
+
+.strip__chevron {
+  font-size: 10px;
+  color: var(--text-3);
+}
+
+.strip__body {
+  padding: 4px 18px 22px;
+  display: grid;
+  gap: 24px;
+  animation: rise var(--dur-small) var(--ease) both;
+}
+
+.figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 40px;
+}
+
+.figure {
+  min-width: 108px;
+}
+
+.figure__value {
+  font-family: var(--font-display);
+  font-size: 27px;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  color: var(--text-0);
+  font-variant-numeric: tabular-nums;
+}
+
+.figure__value--good { color: var(--green); }
+.figure__value--warn { color: var(--amber); }
+
+.figure__label {
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+  color: var(--text-3);
+}
+
+.figure__note {
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+.strip__charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 26px;
+}
+
+.strip__chart-title {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: lowercase;
+  color: var(--text-3);
+  margin-bottom: 14px;
+}
+
+/* Always-visible variant: no toggle, the figures simply lead the page. */
+.strip--static {
+  background: transparent;
+  margin-bottom: 26px;
+}
+
+.strip__heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 0 14px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.11em;
+  text-transform: lowercase;
+  color: var(--text-3);
+}
+
+.strip--static .strip__body {
+  padding: 0;
+}

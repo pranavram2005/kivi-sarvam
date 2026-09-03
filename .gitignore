@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Env
+.env
+.env.local
+
+# Database
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+data/*.db
+# SQLite's write-ahead sidecars. Transient, and a stale WAL shipped next to a
+# missing .db can confuse SQLite on the reviewer's first run.
+data/*.db-shm
+data/*.db-wal
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Eval scratch
+evaluation/results/*.tmp.json
+
+# Evaluation history. `latest.json` and `latest.md` are the committed results
+# the assignment asks for; every other run is local noise from re-running the
+# suite, and a repository full of near-identical timestamped files reads as
+# clutter rather than evidence. The one Groq run the README cites is committed
+# with an explicit exception below.
+evaluation/results/run_*.json
+!evaluation/results/run_20260901T061517Z.json
