@@ -11,6 +11,9 @@
  */
 
 import { useEffect, useState } from "react";
+
+// How many evaluation cases are shown before the section asks to be opened.
+const CASE_PREVIEW = 6;
 import { api, formatPercent, formatStamp } from "../services/api";
 import { Empty, ErrorBanner, PageHead, Pill, Spinner } from "../components/ui";
 import { Figure, Figures, StatsStrip } from "../components/PageStats";
@@ -20,7 +23,7 @@ export default function Inspector({ status }) {
   const [evaluation, setEvaluation] = useState(null);
   const [queries, setQueries] = useState([]);
   const [openQuery, setOpenQuery] = useState(null);
-  const [openCase, setOpenCase] = useState(null);
+  const [allCases, setAllCases] = useState(false);
   const [detail, setDetail] = useState(null);
   const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
@@ -73,6 +76,14 @@ export default function Inspector({ status }) {
   const failures = cases.filter((c) => !c.passed);
   const shown =
     filter === "all" ? cases : filter === "failed" ? failures : cases.filter((c) => c.passed);
+
+  // Failures first. The evaluation writes cases in suite order, which puts the
+  // two that fail at positions 8 and 36 - so a six-case preview taken in that
+  // order would show none of them, hiding the only cases worth opening the
+  // section for. Sorting here rather than in the runner keeps the saved results
+  // in the order the suite ran them.
+  const ordered = [...shown].sort((a, b) => Number(a.passed) - Number(b.passed));
+  const visibleCases = allCases ? ordered : ordered.slice(0, CASE_PREVIEW);
 
   return (
     <div className="page">
@@ -262,86 +273,64 @@ export default function Inspector({ status }) {
             </div>
 
             <div className="stack">
-              {shown.map((c) => {
-                const answer = c.answer || "";
-                const long = answer.length > 150 || (c.failures?.length || 0) > 0;
-                const open = openCase === c.test_id;
-                return (
-                  <div
-                    className={"card card--hover " + (c.passed ? "case--pass" : "case--fail")}
-                    key={c.test_id}
-                  >
-                    <button
-                      onClick={() => setOpenCase(open ? null : c.test_id)}
+              {visibleCases.map((c) => (
+                <div
+                  className={"card " + (c.passed ? "case--pass" : "case--fail")}
+                  key={c.test_id}
+                  style={{ padding: "13px 17px" }}
+                >
+                  <div className="row row--between row--wrap" style={{ gap: 12 }}>
+                    <strong style={{ fontWeight: 550, minWidth: 0 }}>
+                      {c.question || <em className="muted">state check</em>}
+                    </strong>
+                    <div className="row" style={{ gap: 7, flexShrink: 0 }}>
+                      <Pill>{c.category}</Pill>
+                      {c.passed ? <Pill tone="good">pass</Pill> : <Pill tone="rose">fail</Pill>}
+                      <Pill mono>{Math.round(c.end_to_end_latency_ms || 0)} ms</Pill>
+                      <Pill mono>{c.test_id}</Pill>
+                    </div>
+                  </div>
+
+                  <p className="small muted" style={{ marginTop: 7 }}>
+                    {(c.answer || "").slice(0, 180)}
+                    {(c.answer || "").length > 180 ? "…" : ""}
+                  </p>
+
+                  {/* A failure's assertions are the reason to read the case at
+                      all, so they are never behind a control. */}
+                  {c.failures?.length ? (
+                    <ul
                       style={{
-                        all: "unset",
-                        display: "block",
-                        width: "100%",
-                        cursor: long ? "pointer" : "default",
-                        padding: "13px 17px",
+                        margin: "9px 0 0",
+                        paddingLeft: 16,
+                        color: "#e0836f",
+                        fontSize: 12.5,
+                        lineHeight: 1.6,
                       }}
                     >
-                      <div className="row row--between row--wrap" style={{ gap: 12 }}>
-                        <strong style={{ fontWeight: 550, minWidth: 0 }}>
-                          {c.question || <em className="muted">state check</em>}
-                        </strong>
-                        <div className="row" style={{ gap: 7, flexShrink: 0 }}>
-                          <Pill>{c.category}</Pill>
-                          {c.passed ? (
-                            <Pill tone="good">pass</Pill>
-                          ) : (
-                            <Pill tone="rose">fail</Pill>
-                          )}
-                          <Pill mono>{Math.round(c.end_to_end_latency_ms || 0)} ms</Pill>
-                          <Pill mono>{c.test_id}</Pill>
-                        </div>
-                      </div>
-
-                      <p className="small muted" style={{ marginTop: 7 }}>
-                        {open ? answer : answer.slice(0, 150)}
-                        {!open && answer.length > 150 ? "…" : ""}
-                      </p>
-
-                      {long ? (
-                        <span
-                          className="small"
-                          style={{ color: "var(--green)", marginTop: 6, display: "inline-block" }}
-                        >
-                          {open
-                            ? "Show less"
-                            : c.failures?.length
-                              ? `View more — ${c.failures.length} assertion${
-                                  c.failures.length === 1 ? "" : "s"
-                                } failed`
-                              : "View more"}
-                        </span>
-                      ) : null}
-                    </button>
-
-                    {open && c.failures?.length ? (
-                      <div style={{ padding: "0 17px 15px" }}>
-                        <div className="page__eyebrow" style={{ marginBottom: 6 }}>
-                          Why it failed
-                        </div>
-                        <ul
-                          style={{
-                            margin: 0,
-                            paddingLeft: 16,
-                            color: "#e0836f",
-                            fontSize: 12.5,
-                            lineHeight: 1.65,
-                          }}
-                        >
-                          {c.failures.map((f, i) => (
-                            <li key={i}>{f}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
+                      {c.failures.map((f, i) => (
+                        <li key={i}>{f}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              ))}
             </div>
+
+            {/* One control for the section, not one per case. Fifty-two cards
+                is a long scroll past a list most readers only want the shape
+                of; the failures are always among the first shown. */}
+            {shown.length > CASE_PREVIEW ? (
+              <button
+                className="btn btn--quiet"
+                style={{ marginTop: 12, width: "100%" }}
+                onClick={() => setAllCases((v) => !v)}
+              >
+                {allCases
+                  ? `Show fewer — collapse to ${CASE_PREVIEW}`
+                  : `View all ${shown.length} cases — ${shown.length - CASE_PREVIEW} more`}
+              </button>
+            ) : null}
           </section>
         </>
       )}
