@@ -532,6 +532,34 @@ origin — one process to keep alive, and no CORS.
 hosted review cannot survive.
 
 The container defaults to `KIVI_LLM_PROVIDER=heuristic`: no key needed, and the
-evaluation finishes in seconds instead of minutes of rate-limited waiting. Set
-`GROQ_API_KEY` and `KIVI_LLM_PROVIDER=groq` in Railway's Variables to switch it
-to a real model — but see the note in §7 about what a 500-record LLM pass costs.
+evaluation finishes in seconds instead of minutes of rate-limited waiting.
+
+**To use a real model on the hosted instance**, set two variables:
+
+```
+GOOGLE_API_KEY=...
+KIVI_LLM_PROVIDER=gemini
+```
+
+Gemini is the provider to pick if you are on a free tier — Groq's free tier
+caps at 200,000 tokens/day and a 500-record pass needs about 930,000. All four
+providers are installed in the image, so no rebuild is needed to switch.
+
+**Seeding always uses the offline engine, whatever the provider is set to.**
+That is deliberate and worth knowing: seeding runs *before* uvicorn binds a
+port, and 500 records is about a second offline against fifteen to twenty
+minutes through an API. A healthcheck expecting the service within a few
+minutes would kill the container mid-seed and the platform would restart it
+into the same seed — a boot loop that never serves a request. The log line
+says which engine did what:
+
+```
+[kivi] extraction complete (offline engine; serving with gemini)
+```
+
+Answering then uses the configured model. If you want the *memories* built by
+a model too, reprocess once the instance is up and answering:
+
+```bash
+curl -X POST "<URL>/api/memory/process"      -H "Content-Type: application/json" -d '{"reprocess_all": true}'
+```

@@ -78,8 +78,20 @@ fi
 
 if [ "$PENDING" -gt 0 ]; then
   echo "[kivi] $PENDING of $TOTAL transcript(s) awaiting extraction - processing"
-  python scripts/process_corpus.py
-  echo "[kivi] extraction complete"
+  # The first boot seeds with the offline engine even when a model is
+  # configured, and then the server starts with whatever KIVI_LLM_PROVIDER
+  # actually says. Seeding is the one place a hosted model is the wrong
+  # choice: 500 records is roughly a second offline and fifteen to twenty
+  # minutes through an API, and this runs BEFORE uvicorn binds a port. A
+  # healthcheck that expects the service inside a few minutes kills the
+  # container mid-seed, the platform restarts it, and it seeds from the top
+  # again - a boot loop that never serves a request.
+  #
+  # Only extraction and reconciliation are affected. To have a model build
+  # the memories instead, reprocess once the instance is up and answering:
+  #   POST /api/memory/process  {"reprocess_all": true}
+  KIVI_LLM_PROVIDER=heuristic python scripts/process_corpus.py
+  echo "[kivi] extraction complete (offline engine; serving with ${KIVI_LLM_PROVIDER:-heuristic})"
 else
   echo "[kivi] $TOTAL transcript(s) present, all processed - leaving the database alone"
 fi
