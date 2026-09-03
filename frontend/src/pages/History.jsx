@@ -28,6 +28,11 @@ export default function History({ onRefresh }) {
   const [draft, setDraft] = useState("");
   const [dictating, setDictating] = useState(false);
 
+  // The id being deleted, and the last one deleted, so the undo offer can
+  // stay on screen after the row itself has gone from the feed.
+  const [removing, setRemoving] = useState(null);
+  const [undo, setUndo] = useState(null);
+
   async function load() {
     setLoading(true);
     setError(null);
@@ -63,6 +68,39 @@ export default function History({ onRefresh }) {
       setDetail(await api.transcript(id));
     } catch (err) {
       setError(err);
+    }
+  }
+
+  async function removeDictation(item) {
+    setRemoving(item.id);
+    setError(null);
+    try {
+      const result = await api.deleteTranscript(item.id);
+      setOpenId(null);
+      setDetail(null);
+      setUndo({ id: item.id, text: item.formatted_text, forgotten: result.memories_forgotten || [] });
+      await load();
+      onRefresh?.();
+    } catch (err) {
+      setError(err);
+    } finally {
+      setRemoving(null);
+    }
+  }
+
+  async function undoDelete() {
+    if (!undo) return;
+    const id = undo.id;
+    setRemoving(id);
+    try {
+      await api.restoreTranscript(id);
+      setUndo(null);
+      await load();
+      onRefresh?.();
+    } catch (err) {
+      setError(err);
+    } finally {
+      setRemoving(null);
     }
   }
 
@@ -193,6 +231,44 @@ export default function History({ onRefresh }) {
 
       <ErrorBanner error={error} onRetry={load} />
 
+      {undo ? (
+        <div
+          className="row"
+          style={{
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+            border: "1px solid var(--edge)",
+            background: "var(--surface-2)",
+            borderRadius: 10,
+            padding: "10px 13px",
+            marginBottom: 13,
+          }}
+        >
+          <span className="small">
+            Deleted “{(undo.text || "").slice(0, 58)}
+            {(undo.text || "").length > 58 ? "…" : ""}”
+            {undo.forgotten.length
+              ? ` — ${undo.forgotten.length} memor${
+                  undo.forgotten.length === 1 ? "y" : "ies"
+                } forgotten with it.`
+              : "."}
+          </span>
+          <span className="row" style={{ gap: 8, flexShrink: 0 }}>
+            <button
+              className="btn btn--quiet btn--small"
+              disabled={removing === undo.id}
+              onClick={undoDelete}
+            >
+              {removing === undo.id ? "Restoring…" : "Undo"}
+            </button>
+            <button className="btn btn--quiet btn--small" onClick={() => setUndo(null)}>
+              Dismiss
+            </button>
+          </span>
+        </div>
+      ) : null}
+
       {loading ? (
         <div className="row muted" style={{ padding: "26px 0" }}>
           <Spinner /> Loading your history…
@@ -296,6 +372,29 @@ export default function History({ onRefresh }) {
                                 Nothing durable came out of this dictation.
                               </p>
                             )}
+                          </div>
+
+                          <div
+                            className="row"
+                            style={{
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              gap: 10,
+                              borderTop: "1px solid var(--edge)",
+                              paddingTop: 11,
+                            }}
+                          >
+                            <span className="small muted">
+                              Deleting hides this dictation and forgets what it taught
+                              Kivi. It can be undone.
+                            </span>
+                            <button
+                              className="btn btn--quiet btn--small btn--danger"
+                              disabled={removing === item.id}
+                              onClick={() => removeDictation(item)}
+                            >
+                              {removing === item.id ? "Deleting…" : "Delete dictation"}
+                            </button>
                           </div>
                         </>
                       )}

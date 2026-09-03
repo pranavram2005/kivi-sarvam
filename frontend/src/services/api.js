@@ -62,6 +62,12 @@ export const api = {
   applications: () => request("/transcripts/applications"),
   addTranscript: (payload) =>
     request("/transcripts", { method: "POST", body: JSON.stringify(payload) }),
+  // Deleting is reversible: the dictation is hidden and the memories it
+  // produced are marked DELETED, never removed, so provenance survives.
+  deleteTranscript: (id, reason) =>
+    request(`/transcripts/${id}${qs({ reason })}`, { method: "DELETE" }),
+  restoreTranscript: (id) =>
+    request(`/transcripts/${id}/restore`, { method: "POST" }),
 
   // ---- memory ----------------------------------------------------------
   knowledge: () => request("/memories/knowledge"),

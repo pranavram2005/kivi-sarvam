@@ -318,6 +318,43 @@ class GroqProvider(LLMProvider):
 # ---------------------------------------------------------------------------
 # Google Gemini
 # ---------------------------------------------------------------------------
+# Gemini accepts a subset of JSON Schema (an OpenAPI 3.0 dialect) and rejects
+# anything outside it with a 400 rather than ignoring it:
+#
+#   400 INVALID_ARGUMENT  Unknown name "additionalProperties" at
+#   'generation_config.response_schema.properties[2].value.items'
+#
+# `additionalProperties: False` is not optional elsewhere - OpenAI's strict
+# structured-output mode requires it - so the schemas keep it and this strips
+# it on the way out to Gemini only. Worth being deliberate about: the failure
+# was invisible. build_provider treats an unavailable provider as a reason to
+# fall back, so every extraction quietly ran on the offline engine while the
+# status endpoint still reported `gemini`.
+_GEMINI_SCHEMA_KEYS = {
+    "type", "format", "description", "nullable", "enum", "items",
+    "properties", "required", "maxItems", "minItems", "propertyOrdering",
+}
+
+
+def _gemini_schema(node: Any) -> Any:
+    """Recursively drop schema keywords Gemini's response_schema rejects."""
+    if isinstance(node, list):
+        return [_gemini_schema(v) for v in node]
+    if not isinstance(node, dict):
+        return node
+    out = {}
+    for key, value in node.items():
+        if key not in _GEMINI_SCHEMA_KEYS:
+            continue
+        if key == "properties" and isinstance(value, dict):
+            out[key] = {k: _gemini_schema(v) for k, v in value.items()}
+        elif key == "items":
+            out[key] = _gemini_schema(value)
+        else:
+            out[key] = value
+    return out
+
+
 class GeminiProvider(LLMProvider):
     name = "gemini"
 
@@ -347,7 +384,7 @@ class GeminiProvider(LLMProvider):
                     system_instruction=system,
                     max_output_tokens=max_tokens,
                     response_mime_type="application/json",
-                    response_schema=schema,
+                    response_schema=_gemini_schema(schema),
                 ),
             )
         except Exception as exc:

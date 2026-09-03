@@ -86,7 +86,8 @@ def list_transcripts(
     application: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
-    sql = ["SELECT * FROM transcripts WHERE user_id = ?"]
+    sql = ["SELECT * FROM transcripts WHERE user_id = ? AND id NOT IN "
+           "(SELECT transcript_id FROM transcript_deletions)"]
     params: list[Any] = [user_id]
     if search:
         sql.append("AND (formatted_text LIKE ? OR raw_asr LIKE ?)")
@@ -117,6 +118,7 @@ def load_searchable_transcripts(
         """
         SELECT id, formatted_text, raw_asr, application, timestamp, processed_at
         FROM transcripts WHERE user_id = ?
+          AND id NOT IN (SELECT transcript_id FROM transcript_deletions)
         ORDER BY timestamp DESC, id DESC
         """,
         (user_id,),
@@ -126,7 +128,8 @@ def load_searchable_transcripts(
 
 def count_transcripts(user_id: str, conn: sqlite3.Connection | None = None) -> int:
     row = _conn(conn).execute(
-        "SELECT COUNT(*) FROM transcripts WHERE user_id = ?", (user_id,)
+        "SELECT COUNT(*) FROM transcripts WHERE user_id = ? AND id NOT IN "
+        "(SELECT transcript_id FROM transcript_deletions)", (user_id,)
     ).fetchone()
     return int(row[0])
 
@@ -818,3 +821,84 @@ def eval_results_for(run_id: int, conn: sqlite3.Connection | None = None) -> lis
         "SELECT * FROM eval_results WHERE run_id = ? ORDER BY id ASC", (run_id,)
     ).fetchall()
     return rows_to_dicts(rows)
+
+
+# ---------------------------------------------------------------------------
+# Deleting a dictation
+# ---------------------------------------------------------------------------
+def delete_transcript(
+    transcript_id: int,
+    *,
+    reason: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> list[int]:
+    """Hide a dictation and forget what it taught Kivi.
+
+    Returns the ids of the memories that were forgotten with it.
+
+    The row is not removed. `memories.source_transcript_id` is ON DELETE
+    CASCADE, so deleting it would take its memories and their audit events
+    with it, and answers already in the query log would point at rows that no
+    longer exist. Provenance is the property the system exists to guarantee,
+    so a deleted dictation is hidden and its memories are marked DELETED -
+    the same treatment a forgotten memory gets, and reversible the same way.
+
+    Memories that are already SUPERSEDED or REJECTED are left alone: they are
+    not visible anyway, and restoring the dictation should not resurrect a
+    belief that something later corrected.
+    """
+    connection = _conn(conn)
+    affected = [
+        int(r[0])
+        for r in connection.execute(
+            "SELECT id FROM memories WHERE source_transcript_id = ? AND status = 'ACTIVE'",
+            (transcript_id,),
+        ).fetchall()
+    ]
+    now = _now()
+    connection.execute(
+        "INSERT OR REPLACE INTO transcript_deletions (transcript_id, deleted_at, reason) "
+        "VALUES (?, ?, ?)",
+        (transcript_id, now, reason),
+    )
+    for memory_id in affected:
+        connection.execute(
+            "UPDATE memories SET status = 'DELETED', updated_at = ? WHERE id = ?",
+            (now, memory_id),
+        )
+    connection.commit()
+    return affected
+
+
+def restore_transcript(
+    transcript_id: int, *, conn: sqlite3.Connection | None = None
+) -> list[int]:
+    """Bring a deleted dictation back, and with it the memories it produced."""
+    connection = _conn(conn)
+    affected = [
+        int(r[0])
+        for r in connection.execute(
+            "SELECT id FROM memories WHERE source_transcript_id = ? AND status = 'DELETED'",
+            (transcript_id,),
+        ).fetchall()
+    ]
+    connection.execute(
+        "DELETE FROM transcript_deletions WHERE transcript_id = ?", (transcript_id,)
+    )
+    now = _now()
+    for memory_id in affected:
+        connection.execute(
+            "UPDATE memories SET status = 'ACTIVE', updated_at = ? WHERE id = ?",
+            (now, memory_id),
+        )
+    connection.commit()
+    return affected
+
+
+def is_transcript_deleted(
+    transcript_id: int, *, conn: sqlite3.Connection | None = None
+) -> bool:
+    row = _conn(conn).execute(
+        "SELECT 1 FROM transcript_deletions WHERE transcript_id = ?", (transcript_id,)
+    ).fetchone()
+    return row is not None

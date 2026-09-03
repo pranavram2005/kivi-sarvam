@@ -220,3 +220,64 @@ def _day_label(key: str, newest: date | None) -> str:
             return day.strftime("%A")
     # %-d is not portable to Windows, so the day number is formatted by hand.
     return f"{day.strftime('%B')} {day.day}, {day.year}"
+
+
+@router.delete("/{transcript_id}")
+def delete_transcript(transcript_id: int, reason: str | None = None) -> dict:
+    """Delete a dictation and forget what it taught Kivi.
+
+    Deleting is reversible and leaves an audit trail. The transcript row and
+    its memories are kept - the dictation is hidden from History and from
+    retrieval, and any memory it produced is marked DELETED, which is the same
+    treatment `DELETE /api/memories/{id}` gives a single memory.
+
+    Removing the row instead would cascade through `source_transcript_id` and
+    take the memories and their events with it, leaving answers already in the
+    query log citing rows that no longer exist. An answer whose provenance
+    cannot be reconstructed is worse than one that was never given.
+    """
+    record = store.get_transcript(transcript_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"No transcript #{transcript_id}.")
+    if store.is_transcript_deleted(transcript_id):
+        raise HTTPException(status_code=409, detail="That dictation is already deleted.")
+
+    forgotten = store.delete_transcript(transcript_id, reason=reason)
+    for memory_id in forgotten:
+        store.log_event(
+            memory_id=memory_id,
+            transcript_id=transcript_id,
+            event="FORGOTTEN",
+            reason=reason or "the dictation it came from was deleted",
+            actor="user",
+        )
+    return {
+        "transcript_id": transcript_id,
+        "deleted": True,
+        "memories_forgotten": forgotten,
+    }
+
+
+@router.post("/{transcript_id}/restore")
+def restore_transcript(transcript_id: int) -> dict:
+    """Bring back a deleted dictation and the memories it produced."""
+    record = store.get_transcript(transcript_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"No transcript #{transcript_id}.")
+    if not store.is_transcript_deleted(transcript_id):
+        raise HTTPException(status_code=409, detail="That dictation is not deleted.")
+
+    restored = store.restore_transcript(transcript_id)
+    for memory_id in restored:
+        store.log_event(
+            memory_id=memory_id,
+            transcript_id=transcript_id,
+            event="RESTORED",
+            reason="the dictation it came from was restored",
+            actor="user",
+        )
+    return {
+        "transcript_id": transcript_id,
+        "deleted": False,
+        "memories_restored": restored,
+    }
