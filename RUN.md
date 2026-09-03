@@ -307,7 +307,7 @@ and the import itself is unaffected either way:
 
 ```bash
 python scripts/import_corpus.py path/to/reviewer_data.jsonl --reset
-python scripts/process_corpus.py --workers 6
+python scripts/process_corpus.py --workers 6     # --workers 1 on a free tier
 ```
 
 Both commands print progress as they go, and extraction is resumable — it
@@ -535,7 +535,8 @@ corpus:
 | | per record | 500 records |
 | --- | ---: | ---: |
 | `engine=heuristic` | 0.01 s | **~5 seconds** |
-| a hosted model (Gemini Flash-Lite, `workers=4`) | 1–10 s | 15–80 minutes |
+| a model, free tier (15 req/min, `workers=1`) | ~4 s | ~1 hour |
+| a model, paid tier (`workers=6`) | ~1–2 s | 15–20 minutes |
 
 The model figure is a range because it depends on how much reconciling each
 record sets off: a dictation that only adds a memory is one call, one that
@@ -559,9 +560,28 @@ curl -X POST "<URL>/api/corpus/upload?reset=true&process=false"      -F "file=@y
 curl -X POST "<URL>/api/memory/process"      -H "Content-Type: application/json"      -d '{"limit": 100, "workers": 6}'
 ```
 
-Repeat step 2 until it reports `"processed": 0`. Measured with Gemini
-Flash-Lite at `workers: 6`, a record costs 1.1–1.8 seconds, so a batch of 100
-returns in two to three minutes and 500 records take five calls.
+Repeat step 2 until it reports `"processed": 0`.
+
+**On a free tier, keep `workers` at 1.** Gemini's free tier allows **15 requests
+per minute per model**, and one record is one extraction call plus a
+reconciliation call per candidate memory — so concurrency bursts past the limit
+almost immediately. Rejected calls return HTTP 429, which the system treats as a
+reason to degrade rather than to stop: the offline engine takes over, the run
+completes, and the summary still says a model was configured. Measured here,
+`--workers 6` over 225 records had **194 of them (86%) silently extracted by
+rules**. At `workers: 1` a 500-record corpus takes roughly an hour. On a paid
+tier raise `workers` and it drops to fifteen to twenty minutes.
+
+Both the CLI and the API make this visible rather than leaving it to be
+inferred. `process_corpus.py` prints a warning when any record fell back:
+
+```
+  !! 194 of 225 transcript(s) (86%) were extracted by the OFFLINE engine, not gemini.
+     172 of those were rate limited (HTTP 429).
+```
+
+and every affected row carries `[fell back to the offline engine: ...]` in its
+rationale, visible per dictation in the Inspector.
 
 Batching is safe rather than merely convenient: extraction selects transcripts
 with no `processed_at`, so each call continues where the last stopped, and a

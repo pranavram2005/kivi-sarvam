@@ -54,6 +54,8 @@ def run_processing(
         "input_tokens": 0,
         "output_tokens": 0,
         "cost_usd": 0.0,
+        "fell_back": 0,
+        "rate_limited": 0,
     }
 
     def progress(index: int, total: int, result) -> None:
@@ -68,6 +70,17 @@ def run_processing(
         totals["input_tokens"] += result.input_tokens
         totals["output_tokens"] += result.output_tokens
         totals["cost_usd"] += result.cost_usd
+        # A configured model that fails is not an error: build_provider treats
+        # an unavailable provider as a reason to degrade rather than to stop, so
+        # the rules take over and the run continues. That is the right behaviour
+        # and the wrong thing to leave unsaid - on a rate-limited free tier most
+        # of a corpus can end up extracted by rules while the header above still
+        # says a model is in use.
+        rationale = result.rationale or ""
+        if "fell back" in rationale:
+            totals["fell_back"] += 1
+            if "429" in rationale or "RESOURCE_EXHAUSTED" in rationale:
+                totals["rate_limited"] += 1
         step = 25 if total > 200 else 5
         if not quiet and (index % step == 0 or index == total):
             # flush=True matters here: Python buffers stdout when it is not a
@@ -92,6 +105,22 @@ def run_processing(
     types = store.memory_type_counts(user_id)
 
     print(f"\nDone in {elapsed:.1f}s ({elapsed / max(1, totals['processed']) * 1000:.0f} ms/transcript)")
+
+    if totals["fell_back"]:
+        share = totals["fell_back"] / max(1, totals["processed"]) * 100
+        print()
+        print(
+            f"  !! {totals['fell_back']} of {totals['processed']} transcript(s) "
+            f"({share:.0f}%) were extracted by the OFFLINE engine, not {engine.name}."
+        )
+        if totals["rate_limited"]:
+            print(f"     {totals['rate_limited']} of those were rate limited (HTTP 429).")
+            print("     Gemini's free tier allows 15 requests per minute. --workers above")
+            print("     1 bursts past it, and every rejected call silently becomes a rules")
+            print("     extraction. Re-run with --workers 1, or use a paid tier.")
+        print("     Those records carry the offline engine's extraction quality, which")
+        print("     measures 62% recall against 97% on the held-out set. Re-run them")
+        print("     with --reprocess-all once the limit clears if that matters.")
     print(f"  transcripts    : {totals['processed']}")
     print(f"    remembered   : {totals['remembered']}")
     print(f"    ignored      : {totals['ignored']}   (nothing durable said)")
