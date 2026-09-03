@@ -38,6 +38,12 @@ export default function History({ onRefresh }) {
   const [stage, setStage] = useState(null);
   const [tick, setTick] = useState(0);
 
+  // One real dictation and one real memory drawn from it, shown at the top of
+  // the screen. An instance explains what this screen is for faster than a
+  // paragraph does, and because it is taken from the live database rather
+  // than written here, it cannot drift from what the system actually does.
+  const [example, setExample] = useState(null);
+
   async function load() {
     setLoading(true);
     setError(null);
@@ -48,6 +54,19 @@ export default function History({ onRefresh }) {
       ]);
       setDays(feed);
       setApplications(apps);
+
+      const withMemory = feed
+        .flatMap((day) => day.transcripts)
+        .find((t) => t.memory_count > 0);
+      if (withMemory) {
+        try {
+          const full = await api.transcript(withMemory.id);
+          const kept = (full.memories || []).find((m) => m.status === "ACTIVE");
+          if (kept) setExample({ said: full.formatted_text, kept: kept.content });
+        } catch {
+          /* the hero is illustrative; the screen works without it */
+        }
+      }
     } catch (err) {
       setError(err);
     } finally {
@@ -183,8 +202,57 @@ export default function History({ onRefresh }) {
       <PageHead
         eyebrow="screen 1 · history"
         title="Everything you said"
-        lede="Your dictation history, exactly as it was recorded. Open any line to see the raw speech recognition, the text Kivi produced, and what — if anything — Kivi chose to remember from it."
       />
+
+      <div className="hero">
+        <p className="hero__line">
+          everything you said. <span>and the little Kivi kept.</span>
+        </p>
+
+        {example ? (
+          <div className="hero__pair">
+            <div style={{ minWidth: 0 }}>
+              <div className="hero__label">you said</div>
+              <div className="hero__said">
+                “{example.said.length > 96 ? example.said.slice(0, 96) + "…" : example.said}”
+              </div>
+            </div>
+
+            <svg className="hero__arrow" viewBox="0 0 76 15" aria-hidden="true">
+              <path d="M2 8.4c14-3.4 30-4.6 46-3.4M60 8.6c4.6.2 9 .6 13 1.2" />
+              <path d="M56 1.6c5.4 3 11 5.6 17 8.2-6 1-11.6 2.4-17 4.2" />
+            </svg>
+
+            <div style={{ minWidth: 0 }}>
+              <div className="hero__label">kivi kept</div>
+              <div className="hero__kept">{example.kept}</div>
+            </div>
+          </div>
+        ) : (
+          <div className="hero__pair">
+            <div className="small muted">
+              Nothing dictated yet — say something below and Kivi will decide whether it is
+              worth remembering.
+            </div>
+          </div>
+        )}
+      </div>
+
+      <form className="addrow" onSubmit={dictate}>
+        <span className="addrow__mark" aria-hidden="true">
+          +
+        </span>
+        <input
+          className="addrow__input"
+          placeholder="tell kivi something"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+        />
+        <button className="btn btn--small" type="submit" disabled={dictating || !draft.trim()}>
+          {dictating ? <Spinner /> : null}
+          {dictating ? "Working…" : "Dictate"}
+        </button>
+      </form>
 
       {/* Filters, not a form: pressing Enter here must not dictate. */}
       <div className="feed__controls">
@@ -261,19 +329,6 @@ export default function History({ onRefresh }) {
           </>
         )}
       />
-
-      <form className="feed__controls" onSubmit={dictate}>
-        <input
-          className="field"
-          placeholder="Add a dictation — Kivi will decide whether to remember it…"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-        />
-        <button className="btn" type="submit" disabled={dictating || !draft.trim()}>
-          {dictating ? <Spinner /> : null}
-          {dictating ? "Thinking…" : "Dictate"}
-        </button>
-      </form>
 
       {stage ? (
         <div

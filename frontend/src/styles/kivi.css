@@ -1368,3 +1368,145 @@ code {
     gap: 6px;
   }
 }
+
+/* ------------------------------------------------------- history: the hero */
+/* Modelled on Kivi's dictionary screen: a single wide card that opens with a
+   serif statement of what the screen is for, then one worked example laid out
+   as a transformation - what you said on the left, what Kivi made of it on the
+   right, an arrow between them. It answers "what does this screen do?" with an
+   instance rather than a paragraph. */
+.hero {
+  border: 1px solid var(--edge);
+  border-radius: var(--r-xl);
+  background: var(--surface-2);
+  padding: 26px 30px 24px;
+  margin-bottom: 12px;
+}
+
+.hero__line {
+  font-family: var(--font-display);
+  font-size: clamp(19px, 2.1vw, 25px);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  color: var(--text-0);
+  margin: 0 0 20px;
+}
+
+.hero__line span {
+  color: var(--text-2);
+}
+
+.hero__pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 76px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid var(--edge);
+  padding-top: 19px;
+}
+
+.hero__label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+  color: var(--text-3);
+  margin-bottom: 7px;
+}
+
+.hero__said {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 16.5px;
+  color: var(--text-1);
+}
+
+.hero__kept {
+  font-size: 16px;
+  color: var(--text-0);
+}
+
+/* The arrow is drawn rather than typed: a hand-drawn sweep is Kivi's, and a
+   glyph would sit on the text baseline instead of the row's optical centre. */
+.hero__arrow {
+  display: block;
+  width: 100%;
+  height: 15px;
+  overflow: visible;
+}
+
+.hero__arrow path {
+  fill: none;
+  stroke: var(--green);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media (max-width: 720px) {
+  .hero {
+    padding: 20px 18px;
+  }
+
+  .hero__pair {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .hero__arrow {
+    transform: rotate(90deg);
+    width: 40px;
+  }
+}
+
+/* --------------------------------------------------- history: the add row */
+/* A card the whole width of the hero, holding the composer. The circular mark
+   on the left is the affordance Kivi uses for "add one of these". */
+.addrow {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  border: 1px solid var(--edge);
+  border-radius: var(--r-xl);
+  background: var(--surface-2);
+  padding: 13px 17px 13px 14px;
+  margin-bottom: 24px;
+  transition: background var(--dur-small) var(--ease);
+}
+
+.addrow:focus-within {
+  background: var(--surface-3);
+}
+
+.addrow__mark {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-pill);
+  background: var(--green-marker);
+  color: var(--green);
+  font-size: 17px;
+  line-height: 1;
+}
+
+/* The input carries no chrome of its own - the card around it is the field. */
+.addrow__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--text-0);
+  font-family: var(--font-body);
+  font-size: 15px;
+  padding: 4px 0;
+}
+
+.addrow__input::placeholder {
+  color: var(--text-3);
+}
+
+.addrow__input:focus {
+  outline: none;
+}

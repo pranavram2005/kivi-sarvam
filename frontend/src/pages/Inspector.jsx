@@ -20,6 +20,7 @@ export default function Inspector({ status }) {
   const [evaluation, setEvaluation] = useState(null);
   const [queries, setQueries] = useState([]);
   const [openQuery, setOpenQuery] = useState(null);
+  const [openCase, setOpenCase] = useState(null);
   const [detail, setDetail] = useState(null);
   const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
@@ -260,52 +261,86 @@ export default function Inspector({ status }) {
               </div>
             </div>
 
-            <div className="table__scroll card" style={{ padding: "4px 10px" }}>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Case</th>
-                    <th>Category</th>
-                    <th>Question</th>
-                    <th>Answer</th>
-                    <th>Result</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {shown.map((c) => (
-                    <tr key={c.test_id} className={c.passed ? "case--pass" : "case--fail"}>
-                      <td className="mono tiny">{c.test_id}</td>
-                      <td>
-                        <Pill>{c.category}</Pill>
-                      </td>
-                      <td style={{ maxWidth: 240 }}>{c.question || <em className="muted">state check</em>}</td>
-                      <td style={{ maxWidth: 380 }}>
-                        {c.answer}
-                        {c.failures?.length ? (
-                          <ul
-                            style={{
-                              margin: "8px 0 0",
-                              paddingLeft: 16,
-                              color: "#e0836f",
-                              fontSize: 12,
-                            }}
-                          >
-                            {c.failures.map((f, i) => (
-                              <li key={i}>{f}</li>
-                            ))}
-                          </ul>
-                        ) : null}
-                      </td>
-                      <td>
-                        {c.passed ? <Pill tone="good">pass</Pill> : <Pill tone="rose">fail</Pill>}
-                        <div className="mono tiny muted" style={{ marginTop: 6 }}>
-                          {Math.round(c.end_to_end_latency_ms || 0)} ms
+            <div className="stack">
+              {shown.map((c) => {
+                const answer = c.answer || "";
+                const long = answer.length > 150 || (c.failures?.length || 0) > 0;
+                const open = openCase === c.test_id;
+                return (
+                  <div
+                    className={"card card--hover " + (c.passed ? "case--pass" : "case--fail")}
+                    key={c.test_id}
+                  >
+                    <button
+                      onClick={() => setOpenCase(open ? null : c.test_id)}
+                      style={{
+                        all: "unset",
+                        display: "block",
+                        width: "100%",
+                        cursor: long ? "pointer" : "default",
+                        padding: "13px 17px",
+                      }}
+                    >
+                      <div className="row row--between row--wrap" style={{ gap: 12 }}>
+                        <strong style={{ fontWeight: 550, minWidth: 0 }}>
+                          {c.question || <em className="muted">state check</em>}
+                        </strong>
+                        <div className="row" style={{ gap: 7, flexShrink: 0 }}>
+                          <Pill>{c.category}</Pill>
+                          {c.passed ? (
+                            <Pill tone="good">pass</Pill>
+                          ) : (
+                            <Pill tone="rose">fail</Pill>
+                          )}
+                          <Pill mono>{Math.round(c.end_to_end_latency_ms || 0)} ms</Pill>
+                          <Pill mono>{c.test_id}</Pill>
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </div>
+
+                      <p className="small muted" style={{ marginTop: 7 }}>
+                        {open ? answer : answer.slice(0, 150)}
+                        {!open && answer.length > 150 ? "…" : ""}
+                      </p>
+
+                      {long ? (
+                        <span
+                          className="small"
+                          style={{ color: "var(--green)", marginTop: 6, display: "inline-block" }}
+                        >
+                          {open
+                            ? "Show less"
+                            : c.failures?.length
+                              ? `View more — ${c.failures.length} assertion${
+                                  c.failures.length === 1 ? "" : "s"
+                                } failed`
+                              : "View more"}
+                        </span>
+                      ) : null}
+                    </button>
+
+                    {open && c.failures?.length ? (
+                      <div style={{ padding: "0 17px 15px" }}>
+                        <div className="page__eyebrow" style={{ marginBottom: 6 }}>
+                          Why it failed
+                        </div>
+                        <ul
+                          style={{
+                            margin: 0,
+                            paddingLeft: 16,
+                            color: "#e0836f",
+                            fontSize: 12.5,
+                            lineHeight: 1.65,
+                          }}
+                        >
+                          {c.failures.map((f, i) => (
+                            <li key={i}>{f}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
           </section>
         </>
