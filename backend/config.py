@@ -62,6 +62,8 @@ PRICING: dict[str, tuple[float, float]] = {
     "groq/compound": (0.0, 0.0),
     "groq/compound-mini": (0.0, 0.0),
     # Google
+    "gemini-2.5-flash-lite": (0.10, 0.40),
+    "gemini-2.5-flash": (0.30, 2.50),
     "gemini-2.0-flash": (0.10, 0.40),
     "gemini-1.5-flash": (0.075, 0.30),
     # Local / offline
@@ -72,7 +74,7 @@ DEFAULT_MODELS = {
     "anthropic": "claude-opus-5",
     "openai": "gpt-4o-mini",
     "groq": "openai/gpt-oss-120b",
-    "gemini": "gemini-2.0-flash",
+    "gemini": "gemini-2.5-flash-lite",
     "heuristic": "heuristic",
 }
 

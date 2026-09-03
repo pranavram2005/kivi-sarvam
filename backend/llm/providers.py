@@ -326,7 +326,7 @@ class GeminiProvider(LLMProvider):
         from google.genai import types
 
         self._types = types
-        self.model = model or "gemini-2.0-flash"
+        self.model = model or "gemini-2.5-flash-lite"
         self._client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
 
     def complete_json(

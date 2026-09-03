@@ -25,11 +25,16 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 COPY requirements.txt ./
-# `groq` is commented out of requirements.txt because the offline engine needs
-# no provider at all. It is installed here so a reviewer can switch the hosted
-# instance to a real model with an environment variable alone.
+# The optional providers are commented out of requirements.txt because the
+# offline engine needs none of them. They are installed here so every provider
+# RUN.md documents actually works in the container with nothing but an
+# environment variable set. An uninstalled SDK does not raise: build_provider
+# catches the ImportError and falls back to the offline engine, which looks
+# like a working deployment quietly giving lower-quality answers.
+# sentence-transformers is excluded on purpose - it pulls in torch, and the
+# hashing embedder is the documented default.
 RUN pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir "groq>=0.11.0"
+    pip install --no-cache-dir "groq>=0.11.0" "google-genai>=0.3.0" "openai>=1.59.0"
 
 COPY backend/ ./backend/
 COPY evaluation/ ./evaluation/
