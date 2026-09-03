@@ -508,9 +508,19 @@ never overwrites what you imported.
 # 1. push the repository to GitHub
 # 2. railway.com -> New Project -> Deploy from GitHub repo
 # 3. Variables:  (optional) GROQ_API_KEY=...   KIVI_LLM_PROVIDER=groq
+#                do NOT set KIVI_DATABASE_URL  <- see below
 # 4. Volumes:    add one, mount path /data      <- required, see below
 # 5. Networking: Generate Domain
 ```
+
+> **Do not set `KIVI_DATABASE_URL` on the host.** The image already sets
+> `sqlite:////data/kivi.db` — four slashes, an absolute path on the volume.
+> The three-slash form in `.env.example` is the correct *local* value and means
+> a path relative to the repository, so setting it here puts the database
+> inside the container instead of on the volume: it is discarded on every
+> restart, and the container reseeds each time. The entrypoint prints a
+> `[kivi] WARNING: database resolves to ...` line if this happens — if you see
+> it in the deploy logs, delete the variable and redeploy.
 
 `railway.toml` pins the Dockerfile builder and a `/api/health` healthcheck. The
 Dockerfile builds the frontend in a Node stage and copies the static output into
