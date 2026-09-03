@@ -12,7 +12,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Query
 from backend.config import REPO_ROOT, get_settings
 from backend.database.db import clear_all_tables
 from backend.llm.embeddings import get_embedder
-from backend.llm.engine import get_engine
+from backend.llm.engine import build_engine, get_engine
 from backend.memory import extractor, store
 from backend.models.schemas import (
     CorpusImportRequest,
@@ -121,10 +121,25 @@ def _import_records(
     return imported, skipped, errors, ids
 
 
-def _process_all(user_id: str) -> ProcessResponse:
-    engine = get_engine()
+def _process_all(
+    user_id: str, workers: int = 4, engine_name: str | None = None
+) -> ProcessResponse:
+    """Extract memories from everything awaiting it.
+
+    `workers` only parallelises the extraction call. Reconciliation and writing
+    stay strictly sequential in timestamp order, because a correction only means
+    anything once the thing it corrects has been learned - so the stored result
+    is identical whatever this is set to.
+
+    It defaults above 1 because this runs inside a request. Against the offline
+    engine the whole corpus takes about a second and concurrency is irrelevant;
+    against a hosted model each record is a round trip, and 500 of them in
+    series is fifteen minutes or more - long enough that a proxy will close the
+    connection before the import returns.
+    """
+    engine = build_engine(engine_name) if engine_name else get_engine()
     started = time.perf_counter()
-    results = extractor.process_pending(user_id=user_id, engine=engine)
+    results = extractor.process_pending(user_id=user_id, engine=engine, workers=workers)
     return ProcessResponse(
         processed=len(results),
         remembered=sum(1 for r in results if r.decision == "REMEMBER"),
@@ -167,8 +182,25 @@ async def upload_corpus(
     file: UploadFile = File(...),
     process: bool = Query(default=True),
     reset: bool = Query(default=False),
+    workers: int = Query(default=4, ge=1, le=12),
+    engine: str | None = Query(default=None),
 ) -> CorpusImportResponse:
-    """Import a `.jsonl` (or JSON array) corpus file straight from the browser."""
+    """Import a `.jsonl` (or JSON array) corpus file straight from the browser.
+
+    `engine` overrides the configured provider for this import only, and exists
+    because a bulk import and a question have opposite requirements. Answering
+    one question with a model costs a couple of seconds and is worth it. A
+    500-record import is a few hundred extraction calls plus a reconciliation
+    call per candidate memory, run in timestamp order because a correction only
+    means anything after the thing it corrects - measured at 9.8s per record
+    even with `workers=4`, so roughly 82 minutes, which no proxy will hold a
+    connection open for.
+
+    Pass `engine=heuristic` to import a corpus in seconds and leave the
+    configured model to answer questions about it. Or import with
+    `process=false` and extract separately: transcripts awaiting extraction are
+    picked up by any later `POST /api/memory/process`.
+    """
     settings = get_settings()
     raw = (await file.read()).decode("utf-8", errors="replace")
 
@@ -202,7 +234,11 @@ async def upload_corpus(
     imported, skipped, import_errors, _ = _import_records(
         records, user_id=settings.default_user_id
     )
-    processed = _process_all(settings.default_user_id) if process else None
+    processed = (
+        _process_all(settings.default_user_id, workers=workers, engine_name=engine)
+        if process
+        else None
+    )
     return CorpusImportResponse(
         imported=imported,
         skipped=skipped,
