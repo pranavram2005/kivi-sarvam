@@ -134,6 +134,11 @@ class KnowledgeView(BaseModel):
 class ProcessRequest(BaseModel):
     limit: int | None = Field(default=None, ge=1, le=5000)
     reprocess_all: bool = False
+    # Parallelises the extraction call only. Reconciliation and writing stay
+    # sequential in timestamp order, so the stored result is the same whatever
+    # this is set to. It matters because this endpoint runs inside a request:
+    # against a hosted model each record is a round trip.
+    workers: int = Field(default=4, ge=1, le=12)
 
 
 class ProcessResponse(BaseModel):

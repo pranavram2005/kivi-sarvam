@@ -267,7 +267,10 @@ def process_transcripts(payload: ProcessRequest) -> ProcessResponse:
 
     started = time.perf_counter()
     results = extractor.process_pending(
-        user_id=settings.default_user_id, limit=payload.limit, engine=engine
+        user_id=settings.default_user_id,
+        limit=payload.limit,
+        engine=engine,
+        workers=payload.workers,
     )
     elapsed_ms = (time.perf_counter() - started) * 1000
 

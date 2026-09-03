@@ -300,6 +300,31 @@ python scripts/import_corpus.py path/to/reviewer_data.jsonl --reset --process
 - `--process` runs memory extraction immediately. Omit it and run
   `python scripts/process_corpus.py` yourself.
 
+**If you have configured your own model (§7), import and extract separately
+instead.** `--process` extracts one record at a time, which is right for the
+offline engine and slow against an API; `process_corpus.py` takes `--workers`
+and the import itself is unaffected either way:
+
+```bash
+python scripts/import_corpus.py path/to/reviewer_data.jsonl --reset
+python scripts/process_corpus.py --workers 6
+```
+
+Both commands print progress as they go, and extraction is resumable — it
+selects transcripts with no `processed_at`, so if it is interrupted, running it
+again continues from where it stopped rather than starting over. Rough timings
+for 500 records, measured on this corpus:
+
+| engine | extraction |
+| --- | ---: |
+| offline (default) | about 1 second |
+| Gemini Flash-Lite, `--workers 6` | 15–20 minutes |
+
+The stored result does not depend on `--workers`. Only the extraction call is
+parallelised; reconciliation and writing stay strictly sequential in timestamp
+order, because a correction only means something once the thing it corrects has
+already been learned.
+
 > **Stop the backend first** if it is running (Ctrl+C). Windows will not let the
 > database file be replaced while a process holds it open; the script tells you
 > this if it happens.
@@ -496,27 +521,61 @@ records. `process=true` runs extraction, reconciliation and embedding as each
 record lands. The response reports how many were remembered, ignored,
 superseded, skipped as duplicates and rejected.
 
-**`engine=heuristic` is on that command deliberately, even when a model is
-configured**, because a bulk import and a question have opposite requirements.
-Answering one question with a model costs a couple of seconds and is worth it.
-Importing 500 records is a few hundred extraction calls plus a reconciliation
-call per candidate memory, run in timestamp order because a correction only
-means anything after the thing it corrects. Measured on this corpus:
+`engine=heuristic` on that command controls **which engine builds the
+memories**. It never affects which engine answers questions — that is always
+whatever `KIVI_LLM_PROVIDER` is set to.
+
+It is on the default command because a bulk import and a single question have
+opposite requirements. One question through a model costs a couple of seconds
+and is worth it. Importing 500 records is a few hundred extraction calls plus a
+reconciliation call per candidate memory, run in timestamp order because a
+correction only means something after the thing it corrects. Measured on this
+corpus:
 
 | | per record | 500 records |
 | --- | ---: | ---: |
 | `engine=heuristic` | 0.01 s | **~5 seconds** |
-| configured model (Gemini Flash-Lite, `workers=4`) | 9.8 s | ~82 minutes |
+| a hosted model (Gemini Flash-Lite, `workers=4`) | 1–10 s | 15–80 minutes |
 
-No proxy holds a connection open for eighty-two minutes, so the import would
-appear to hang and then fail. Drop `engine=heuristic` only if you want the
-memories themselves built by the model and are prepared to wait - in which case
-import with `process=false` first and extract afterwards, since transcripts
-awaiting extraction are picked up by any later `POST /api/memory/process`.
+The model figure is a range because it depends on how much reconciling each
+record sets off: a dictation that only adds a memory is one call, one that
+corrects something already known is one call plus a resolution call per
+candidate. Either way it is longer than a proxy will hold a connection open, so
+a single request for the whole corpus would appear to hang and then fail.
 
-Answering always uses whatever `KIVI_LLM_PROVIDER` is set to. This parameter
-changes which engine *builds the memories*, not which one answers questions
-about them.
+#### Using your own model for extraction as well
+
+Extraction is where a model earns its place in this system — measured on a
+held-out set, recall goes from 62% offline to 97% with one. If you want the
+memories built by your model rather than by rules, set `GOOGLE_API_KEY` and
+`KIVI_LLM_PROVIDER=gemini` (or your provider of choice — all four are installed
+in the image) in the deployment's variables, then import in two steps:
+
+```bash
+# 1. import without extracting — fast, and returns immediately
+curl -X POST "<URL>/api/corpus/upload?reset=true&process=false"      -F "file=@your_corpus.jsonl"
+
+# 2. extract with the configured model, in batches that fit inside a request
+curl -X POST "<URL>/api/memory/process"      -H "Content-Type: application/json"      -d '{"limit": 100, "workers": 6}'
+```
+
+Repeat step 2 until it reports `"processed": 0`. Measured with Gemini
+Flash-Lite at `workers: 6`, a record costs 1.1–1.8 seconds, so a batch of 100
+returns in two to three minutes and 500 records take five calls.
+
+Batching is safe rather than merely convenient: extraction selects transcripts
+with no `processed_at`, so each call continues where the last stopped, and a
+call that dies costs you only the records still outstanding — nothing is
+processed twice and nothing is skipped. `workers` parallelises the extraction
+call alone; reconciliation and writing stay sequential in timestamp order, so
+the memories you end up with do not depend on it.
+
+The response names the engine that did the work, so there is no ambiguity about
+which one produced the memories you are about to inspect.
+
+Running the whole corpus locally is faster than doing it over HTTP — see §8,
+which uses the same engine with `--workers` and no request timeout to work
+around.
 
 To send records as a JSON body instead, `POST <URL>/api/corpus/import`. To put
 the demo corpus back, `POST <URL>/api/system/reset` then re-import.
