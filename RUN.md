@@ -487,13 +487,36 @@ The Inspector screen shows the same results without curl.
 Upload a JSONL file in the documented format (`docs/CORPUS_FORMAT.md`):
 
 ```bash
-curl -X POST "<URL>/api/corpus/upload?reset=true&process=true" \n     -F "file=@your_corpus.jsonl"
+curl -X POST "<URL>/api/corpus/upload?reset=true&process=true&engine=heuristic" \
+     -F "file=@your_corpus.jsonl"
 ```
 
 `reset=true` clears the demo corpus first, so the instance holds only your
 records. `process=true` runs extraction, reconciliation and embedding as each
 record lands. The response reports how many were remembered, ignored,
 superseded, skipped as duplicates and rejected.
+
+**`engine=heuristic` is on that command deliberately, even when a model is
+configured**, because a bulk import and a question have opposite requirements.
+Answering one question with a model costs a couple of seconds and is worth it.
+Importing 500 records is a few hundred extraction calls plus a reconciliation
+call per candidate memory, run in timestamp order because a correction only
+means anything after the thing it corrects. Measured on this corpus:
+
+| | per record | 500 records |
+| --- | ---: | ---: |
+| `engine=heuristic` | 0.01 s | **~5 seconds** |
+| configured model (Gemini Flash-Lite, `workers=4`) | 9.8 s | ~82 minutes |
+
+No proxy holds a connection open for eighty-two minutes, so the import would
+appear to hang and then fail. Drop `engine=heuristic` only if you want the
+memories themselves built by the model and are prepared to wait - in which case
+import with `process=false` first and extract afterwards, since transcripts
+awaiting extraction are picked up by any later `POST /api/memory/process`.
+
+Answering always uses whatever `KIVI_LLM_PROVIDER` is set to. This parameter
+changes which engine *builds the memories*, not which one answers questions
+about them.
 
 To send records as a JSON body instead, `POST <URL>/api/corpus/import`. To put
 the demo corpus back, `POST <URL>/api/system/reset` then re-import.
