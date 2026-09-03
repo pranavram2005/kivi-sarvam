@@ -98,6 +98,18 @@ export default function App() {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
+  // Arriving on a screen should start at the top of it. The body is what
+  // scrolls here, and changing the hash does not reset it, so switching from
+  // the bottom of a long History to Hey Kivi would otherwise open the new
+  // screen already scrolled past its own heading.
+  //
+  // Jumping rather than smooth-scrolling on purpose: this is a navigation, not
+  // a gesture the person made within a page, and animating it means the new
+  // screen is briefly rendered at the old offset.
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [screen]);
+
   const refresh = useCallback(async () => {
     try {
       setStatus(await api.status());

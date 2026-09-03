@@ -60,8 +60,14 @@ export const api = {
   feed: (params) => request(`/transcripts/feed${qs(params)}`),
   transcript: (id) => request(`/transcripts/${id}`),
   applications: () => request("/transcripts/applications"),
-  addTranscript: (payload) =>
-    request("/transcripts", { method: "POST", body: JSON.stringify(payload) }),
+  // `process: false` stores the dictation and returns immediately, so the UI
+  // can show it in the feed before extraction - which takes seconds against a
+  // real model - has run.
+  addTranscript: (payload, options = {}) =>
+    request(`/transcripts${qs({ process: options.process === false ? "false" : undefined })}`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   // Deleting is reversible: the dictation is hidden and the memories it
   // produced are marked DELETED, never removed, so provenance survives.
   deleteTranscript: (id, reason) =>

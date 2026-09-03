@@ -33,6 +33,11 @@ export default function History({ onRefresh }) {
   const [removing, setRemoving] = useState(null);
   const [undo, setUndo] = useState(null);
 
+  // What the dictate flow is currently doing, and a clock so the wait is
+  // legible rather than indefinite.
+  const [stage, setStage] = useState(null);
+  const [tick, setTick] = useState(0);
+
   async function load() {
     setLoading(true);
     setError(null);
@@ -55,6 +60,12 @@ export default function History({ onRefresh }) {
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, application]);
+
+  useEffect(() => {
+    if (!stage || stage.step === "done") return undefined;
+    const id = setInterval(() => setTick((t) => t + 1), 200);
+    return () => clearInterval(id);
+  }, [stage]);
 
   async function toggle(id) {
     if (openId === id) {
@@ -104,24 +115,59 @@ export default function History({ onRefresh }) {
     }
   }
 
+  // Dictating is split into its two real steps rather than one opaque wait.
+  // Storing is instant; extraction is one model call plus a resolution call per
+  // candidate memory, run in sequence, which is seconds against a hosted model.
+  // Showing a single spinner for all of it looks like the app has hung, so each
+  // stage below corresponds to an actual request completing - nothing here is a
+  // timed animation pretending to be progress.
   async function dictate(event) {
     event.preventDefault();
     if (!draft.trim()) return;
+    const text = draft.trim();
     setDictating(true);
+    setStage({ step: "saving", startedAt: Date.now() });
     try {
-      const created = await api.addTranscript({
-        raw_asr: draft.trim().toLowerCase().replace(/[.,!?]/g, ""),
-        formatted_text: draft.trim(),
-        timestamp: new Date().toISOString(),
-        application: "Notes",
-      });
+      const created = await api.addTranscript(
+        {
+          raw_asr: text.toLowerCase().replace(/[.,!?]/g, ""),
+          formatted_text: text,
+          timestamp: new Date().toISOString(),
+          application: "Notes",
+        },
+        { process: false },
+      );
       setDraft("");
+
+      // The dictation is stored, so show it before extraction starts. It
+      // appears in the feed marked "Not processed", which is the truth.
+      setStage({ step: "extracting", startedAt: Date.now(), id: created.id });
       await load();
-      onRefresh?.();
       setOpenId(created.id);
       setDetail(created);
+
+      const result = await api.process({});
+      const full = await api.transcript(created.id);
+      setDetail(full);
+      setStage({
+        step: "done",
+        startedAt: Date.now(),
+        id: created.id,
+        provider: result?.provider,
+        model: result?.model,
+        elapsedMs: result?.elapsed_ms,
+        created: result?.memories_created ?? 0,
+        superseded: result?.memories_superseded ?? 0,
+        duplicate: result?.memories_duplicate ?? 0,
+        rejected: result?.memories_rejected ?? 0,
+        ignored: result?.ignored ?? 0,
+        rationale: full?.extraction?.rationale,
+      });
+      await load();
+      onRefresh?.();
     } catch (err) {
       setError(err);
+      setStage(null);
     } finally {
       setDictating(false);
     }
@@ -228,6 +274,75 @@ export default function History({ onRefresh }) {
           {dictating ? "Thinking…" : "Dictate"}
         </button>
       </form>
+
+      {stage ? (
+        <div
+          className="row"
+          style={{
+            alignItems: "flex-start",
+            gap: 11,
+            border: "1px solid var(--edge)",
+            background: "var(--surface-2)",
+            borderRadius: 10,
+            padding: "11px 13px",
+            marginBottom: 13,
+          }}
+        >
+          {stage.step === "done" ? null : <Spinner />}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {stage.step === "saving" ? (
+              <>
+                <div className="small">Saving what you said…</div>
+                <div className="small muted">
+                  The dictation is stored before anything is inferred from it.
+                </div>
+              </>
+            ) : stage.step === "extracting" ? (
+              <>
+                <div className="small">
+                  Stored. Kivi is reading it…{" "}
+                  <span className="mono muted">
+                    {((Date.now() - stage.startedAt) / 1000).toFixed(1)}s
+                  </span>
+                </div>
+                <div className="small muted">
+                  Deciding what is worth remembering, then checking each candidate
+                  against what Kivi already knows. One model call per step, so this
+                  takes a few seconds against a hosted model and is instant offline.
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="small">
+                  {stage.created + stage.superseded === 0
+                    ? "Nothing durable came out of that."
+                    : [
+                        stage.created ? `${stage.created} remembered` : null,
+                        stage.superseded ? `${stage.superseded} corrected` : null,
+                        stage.duplicate ? `${stage.duplicate} already known` : null,
+                        stage.rejected ? `${stage.rejected} below confidence` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                </div>
+                <div className="small muted">
+                  {stage.rationale ? `${stage.rationale} ` : ""}
+                  <span className="mono">
+                    {stage.provider}
+                    {stage.model && stage.model !== stage.provider ? ` · ${stage.model}` : ""}
+                    {stage.elapsedMs ? ` · ${(stage.elapsedMs / 1000).toFixed(1)}s` : ""}
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+          {stage.step === "done" ? (
+            <button className="btn btn--quiet btn--small" onClick={() => setStage(null)}>
+              Dismiss
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       <ErrorBanner error={error} onRetry={load} />
 
