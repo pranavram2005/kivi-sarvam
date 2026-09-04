@@ -307,7 +307,7 @@ and the import itself is unaffected either way:
 
 ```bash
 python scripts/import_corpus.py path/to/reviewer_data.jsonl --reset
-python scripts/process_corpus.py --workers 6     # --workers 1 on a free tier
+python scripts/process_corpus.py --workers 6     # paid tier; see the note below
 ```
 
 Both commands print progress as they go, and extraction is resumable — it
@@ -318,7 +318,10 @@ for 500 records, measured on this corpus:
 | engine | extraction |
 | --- | ---: |
 | offline (default) | about 1 second |
-| Gemini Flash-Lite, `--workers 6` | 15–20 minutes |
+| Gemini Flash-Lite, `--workers 6`, paid tier | 15–20 minutes |
+| Gemini Flash-Lite, free tier | not achievable — 15 requests/minute is below
+  what a single serial worker asks for, so a large share of the corpus falls
+  back to rules. The run says how many. |
 
 The stored result does not depend on `--workers`. Only the extraction call is
 parallelised; reconciliation and writing stay strictly sequential in timestamp
@@ -535,7 +538,7 @@ corpus:
 | | per record | 500 records |
 | --- | ---: | ---: |
 | `engine=heuristic` | 0.01 s | **~5 seconds** |
-| a model, free tier (15 req/min, `workers=1`) | ~4 s | ~1 hour |
+| a model, free tier | — | **not achievable — see below** |
 | a model, paid tier (`workers=6`) | ~1–2 s | 15–20 minutes |
 
 The model figure is a range because it depends on how much reconciling each
@@ -557,20 +560,33 @@ in the image) in the deployment's variables, then import in two steps:
 curl -X POST "<URL>/api/corpus/upload?reset=true&process=false"      -F "file=@your_corpus.jsonl"
 
 # 2. extract with the configured model, in batches that fit inside a request
-curl -X POST "<URL>/api/memory/process"      -H "Content-Type: application/json"      -d '{"limit": 100, "workers": 6}'
+curl -X POST "<URL>/api/memory/process"      -H "Content-Type: application/json"      -d '{"limit": 100, "workers": 6}'          # paid tier; see the note below
 ```
 
 Repeat step 2 until it reports `"processed": 0`.
 
-**On a free tier, keep `workers` at 1.** Gemini's free tier allows **15 requests
-per minute per model**, and one record is one extraction call plus a
-reconciliation call per candidate memory — so concurrency bursts past the limit
-almost immediately. Rejected calls return HTTP 429, which the system treats as a
-reason to degrade rather than to stop: the offline engine takes over, the run
-completes, and the summary still says a model was configured. Measured here,
-`--workers 6` over 225 records had **194 of them (86%) silently extracted by
-rules**. At `workers: 1` a 500-record corpus takes roughly an hour. On a paid
-tier raise `workers` and it drops to fifteen to twenty minutes.
+**A free tier cannot build this corpus with a model, at any `workers` setting.**
+Gemini's free tier allows **15 requests per minute per project per model**, and
+one record costs one extraction call plus a reconciliation call per candidate
+memory. Measured on this corpus:
+
+| | throughput | fell back to rules |
+| --- | ---: | ---: |
+| `workers: 6` | far over the limit | **194 of 225 (86%)** |
+| `workers: 1` | ~21 records/min | **19 of 53 (36%)** |
+
+Even fully serial is too fast: a record takes about 2.9 seconds, which is 21
+requests a minute against a ceiling of 15. Rejected calls return HTTP 429, and
+the system treats that as a reason to degrade rather than to stop — the offline
+engine takes over, the run completes, and the summary still names a model.
+There is no `--workers` value that fixes this, because nothing paces requests to
+the quota. That rate limiter is a known gap, recorded in the README's
+Limitations.
+
+**So on a free tier, use `engine=heuristic` for the import** — the default
+command above — and let the model answer questions, which is one call at a time
+and well inside the limit. On a paid tier the ceiling disappears and
+`workers: 6` builds the corpus in fifteen to twenty minutes.
 
 Both the CLI and the API make this visible rather than leaving it to be
 inferred. `process_corpus.py` prints a warning when any record fell back:
