@@ -1608,209 +1608,6 @@ code {
   margin-top: 4px;
 }
 
-/* ------------------------------------------- hey kivi: the record layout */
-/* Modelled on Kivi's record screen: a marker-swiped serif line naming the
-   moment, one prominent card for the thing in hand with its metadata on a
-   footer bar, a quiet list of what came before, and a single figure in a rail
-   to the right. The shape carries the hierarchy - one thing to look at, one
-   list to scan, one number to glance at. */
-.rec {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 30px;
-  align-items: start;
-}
-
-.rec__title {
-  font-family: var(--font-display);
-  font-size: clamp(30px, 3.6vw, 46px);
-  font-weight: 300;
-  line-height: 1.08;
-  letter-spacing: -0.015em;
-  margin: 0 0 26px;
-  text-wrap: balance;
-}
-
-.rec__title mark {
-  background: var(--green-marker);
-  box-shadow: inset 0 -2px 0 var(--green-line);
-  color: var(--text-0);
-  padding: 0 0.12em 0.04em;
-  border-radius: 3px;
-}
-
-/* The card in hand. Padding is generous because it holds one thing. */
-.rec__card {
-  border: 1px solid var(--edge);
-  border-radius: var(--r-lg);
-  background: var(--surface-2);
-  overflow: hidden;
-}
-
-.rec__card-label {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.09em;
-  color: var(--text-3);
-  padding: 17px 20px 0;
-}
-
-.rec__card-body {
-  padding: 9px 20px 26px;
-  font-size: 17px;
-  color: var(--text-0);
-  min-height: 76px;
-}
-
-/* Metadata sits on its own bar rather than floating in the card, so the card
-   reads as content with a caption instead of a box of mixed weights. */
-.rec__card-foot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 11px 20px;
-  border-top: 1px solid var(--edge);
-  background: var(--surface-1);
-  font-size: 12.5px;
-  color: var(--text-2);
-}
-
-.rec__card-foot b {
-  color: var(--text-1);
-  font-weight: 500;
-}
-
-.keycap {
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  color: var(--green);
-  background: var(--green-marker);
-  border: 1px solid var(--green-line);
-  border-radius: var(--r-sm);
-  padding: 2px 7px;
-  white-space: nowrap;
-}
-
-/* --- the list of what came before --- */
-.rec__section {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 30px 0 3px;
-}
-
-.rec__section-title {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: 0.07em;
-  color: var(--text-2);
-}
-
-.rec__section-link {
-  all: unset;
-  cursor: pointer;
-  font-size: 12.5px;
-  color: var(--text-3);
-}
-.rec__section-link:hover { color: var(--green); }
-.rec__section-link:focus-visible { outline: 2px solid var(--green-line); outline-offset: 3px; }
-
-.rec__note {
-  font-size: 12.5px;
-  color: var(--text-3);
-  margin: 0 0 9px;
-}
-
-.rec__row {
-  all: unset;
-  cursor: pointer;
-  display: grid;
-  grid-template-columns: 10px minmax(0, 1fr) auto;
-  align-items: baseline;
-  gap: 11px;
-  padding: 9px 2px;
-  border-bottom: 1px solid var(--edge);
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.rec__row:hover .rec__row-text { color: var(--green); }
-.rec__row:focus-visible { outline: 2px solid var(--green-line); outline-offset: 2px; }
-
-/* A square rather than a disc: it reads as a record, not a bullet point. */
-.rec__row-mark {
-  width: 4px;
-  height: 4px;
-  background: var(--text-3);
-  transform: translateY(-3px);
-}
-
-.rec__row-text {
-  font-size: 14.5px;
-  color: var(--text-0);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.rec__row-app {
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  color: var(--text-3);
-  white-space: nowrap;
-}
-
-/* --- the figure in the rail --- */
-.rec__panel {
-  border: 1px solid var(--edge);
-  border-radius: var(--r-lg);
-  background: var(--surface-2);
-  padding: 19px 20px;
-  display: grid;
-  gap: 3px;
-}
-
-.rec__figure {
-  font-family: var(--font-display);
-  font-size: 40px;
-  font-weight: 300;
-  line-height: 1;
-  color: var(--text-0);
-  font-variant-numeric: tabular-nums;
-}
-
-.rec__figure-label { font-size: 13.5px; color: var(--text-1); }
-.rec__figure-note { font-size: 12px; color: var(--text-3); }
-
-.rec__panel-rows {
-  margin-top: 14px;
-  padding-top: 13px;
-  border-top: 1px solid var(--edge);
-  display: grid;
-  gap: 7px;
-}
-
-.rec__panel-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  font-size: 12.5px;
-  color: var(--text-2);
-}
-.rec__panel-row b {
-  color: var(--text-0);
-  font-weight: 500;
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-}
-
-@media (max-width: 900px) {
-  .rec { grid-template-columns: 1fr; gap: 20px; }
-}
-
 /* ------------------------------------------------- how it works: diagrams */
 /* Four fixed pictures, drawn as inline SVG. Everything takes its colour from
    currentColor or a token, so both themes work from one asset. */
@@ -1999,4 +1796,64 @@ code {
 
 @media (prefers-reduced-motion: reduce) {
   .pipe__pulse { animation: none; }
+}
+
+/* ------------------------------------------------ hey kivi: the composer */
+/* Pinned to the bottom of the reading column so it is reachable without
+   scrolling back down a long conversation.
+   `sticky` rather than `fixed`: fixed would take the bar out of flow and pin it
+   to the viewport, which on this layout means it would sit over the collapsed
+   navigation rail and ignore the page's own width. Sticky keeps it inside the
+   column, so it stays the width of the conversation it belongs to and the rail
+   is never covered. */
+.ask {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  margin-top: 18px;
+  padding: 14px 0 18px;
+  background: var(--stage);
+}
+
+/* The page has a grain overlay and no hard edge at the bottom, so the bar needs
+   its own boundary or the conversation appears to slide underneath nothing. */
+.ask::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: var(--edge);
+}
+
+/* A short fade above the rule, so a line of text scrolling under the bar
+   dissolves instead of being cut in half. */
+.ask::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 22px;
+  pointer-events: none;
+  background: linear-gradient(to top, var(--stage), transparent);
+}
+
+.ask__row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.ask__send { flex-shrink: 0; }
+
+/* A sub-heading inside a How it works section. Body face rather than display,
+   so it steps down from the section title instead of competing with it. */
+.how__h3 {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-0);
+  margin: 26px 0 7px;
 }

@@ -149,17 +149,11 @@ export default function HeyKivi({ onRefresh }) {
 
   return (
     <div className="page page--chat">
-      {/* On the opening screen the greeting is the header - the record screen
-          leads with one line, not a title above a line. Once a conversation
-          has started the page needs its own identity back, so the head
-          returns. */}
-      {started ? (
-        <PageHead
-          eyebrow="screen 2 · hey kivi"
-          title="Ask, and see why"
-          lede="Kivi answers only from what it has learned in your dictations. Every answer shows the memories behind it — and says so plainly when your history does not contain the answer."
-        />
-      ) : null}
+      <PageHead
+        eyebrow="screen 2 · hey kivi"
+        title="Ask, and see why"
+        lede="Kivi answers only from what it has learned in your dictations. Every answer shows the memories behind it — and says so plainly when your history does not contain the answer."
+      />
 
       <ErrorBanner error={error} />
 
@@ -300,27 +294,10 @@ function KiviMark() {
 }
 
 /* ---------------------------------------------------------------- welcome */
-/**
- * The opening screen, built on the shape of Kivi's own record page: a
- * marker-swiped line naming the moment, one card for the thing in hand, a
- * quiet list of what came before, and a single figure in the rail.
- */
-function greeting(now = new Date()) {
-  const h = now.getHours();
-  if (h < 5) return ["night owl hours", "ask quietly."];
-  if (h < 12) return ["morning", "what do you need to remember?"];
-  if (h < 17) return ["afternoon", "ask what you already told me."];
-  if (h < 22) return ["evening", "let's check what you said today."];
-  return ["late", "ask, and I'll keep it short."];
-}
-
-function Welcome({ suggestions, onPick, stats, earlier, onEarlier, loadingEarlier, history }) {
-  const [lead, tail] = greeting();
-  const summary = stats?.summary;
-
-  // The four suggestions are grouped by what each one demonstrates, so the
-  // first thing a reader learns is that Kivi can also refuse - the behaviour
-  // the product is really built around.
+function Welcome({ suggestions, onPick, stats, earlier, onEarlier, loadingEarlier }) {
+  // Grouped by what each question *demonstrates*, so the first thing a new
+  // reader learns is that Kivi can also refuse — the behaviour the product is
+  // really built around.
   const groups = [
     { label: "Recall", match: /prepare|discussing|say about|owe/i },
     { label: "Scheduling", match: /when is my|when is the/i },
@@ -330,80 +307,57 @@ function Welcome({ suggestions, onPick, stats, earlier, onEarlier, loadingEarlie
     .map((g) => ({ ...g, picks: suggestions.filter((s) => g.match.test(s)) }))
     .filter((g) => g.picks.length);
 
-  const first = groups[0]?.picks?.[0] || suggestions[0] || null;
-  const rest = groups.flatMap((g) => g.picks.slice(0, 1)).filter((q) => q !== first);
-
   return (
-    <div className="rec">
-      <div style={{ minWidth: 0 }}>
-        <h2 className="rec__title">
-          <mark>{lead}</mark> — {tail}
-        </h2>
-
-        <div className="rec__card">
-          <div className="rec__card-label">try asking</div>
-          <div className="rec__card-body">
-            {first || "Ask me about the people you work with, what you have coming up, or what you still owe someone."}
-          </div>
-          <div className="rec__card-foot">
-            <span>
-              <b>Hey Kivi</b> answers only from your dictations
-            </span>
-            <span>
-              press <span className="keycap">Enter</span> to ask
-            </span>
-          </div>
-        </div>
-
-        {rest.length ? (
-          <>
-            <div className="rec__section">
-              <span className="rec__section-title">or try one of these</span>
-              {earlier ? (
-                <button className="rec__section-link" onClick={onEarlier} disabled={loadingEarlier}>
-                  {loadingEarlier ? "loading…" : `${earlier} earlier →`}
-                </button>
-              ) : null}
-            </div>
-            {groups.map((g) =>
-              g.picks.slice(0, 1).map((q) => (
-                <button className="rec__row" key={q} onClick={() => onPick(q)}>
-                  <span className="rec__row-mark" aria-hidden="true" />
-                  <span className="rec__row-text">{q}</span>
-                  <span className="rec__row-app">{g.label}</span>
-                </button>
-              )),
-            )}
-          </>
-        ) : null}
+    <div className="welcome">
+      <div className="welcome__intro">
+        <KiviMark />
+        <p>
+          Ask me about the people you work with, what you have coming up, or what you still
+          owe someone. I'll only tell you what you've actually said — and I'll say so when
+          I don't know.
+        </p>
       </div>
 
-      <aside className="rec__panel">
-        <div className="rec__figure">{summary?.total ?? 0}</div>
-        <div className="rec__figure-label">
-          question{summary?.total === 1 ? "" : "s"} answered from memory
+      {groups.length ? (
+        <div className="welcome__groups">
+          {groups.map((g) => (
+            <div className="welcome__group" key={g.label}>
+              <div className="welcome__group-label">{g.label}</div>
+              {g.picks.slice(0, 2).map((s) => (
+                <button key={s} className="welcome__pick" onClick={() => onPick(s)}>
+                  {s}
+                </button>
+              ))}
+            </div>
+          ))}
         </div>
-        <div className="rec__figure-note">
-          {summary?.total ? "every one traceable to what you said" : "nothing asked yet — start above"}
-        </div>
+      ) : null}
 
-        {summary?.total ? (
-          <div className="rec__panel-rows">
-            <div className="rec__panel-row">
-              <span>refused honestly</span>
-              <b>{summary.abstained}</b>
-            </div>
-            <div className="rec__panel-row">
-              <span>grounded in memory</span>
-              <b>{formatPercent(summary.supported_rate, 0)}</b>
-            </div>
-            <div className="rec__panel-row">
-              <span>average answer</span>
-              <b>{Math.round(summary.avg_total_latency_ms)} ms</b>
-            </div>
-          </div>
-        ) : null}
-      </aside>
+      {earlier ? (
+        <div className="welcome__earlier">
+          <button className="chip" onClick={onEarlier} disabled={loadingEarlier}>
+            {loadingEarlier ? <Spinner /> : null} show {earlier} earlier question
+            {earlier === 1 ? "" : "s"}
+          </button>
+        </div>
+      ) : null}
+
+      {stats?.summary?.total ? (
+        <div className="welcome__stats">
+          <span>
+            <b>{stats.summary.total}</b> asked
+          </span>
+          <span>
+            <b>{stats.summary.abstained}</b> refused honestly
+          </span>
+          <span>
+            <b>{formatPercent(stats.summary.supported_rate, 0)}</b> grounded
+          </span>
+          <span>
+            <b>{Math.round(stats.summary.avg_total_latency_ms)} ms</b> average
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }

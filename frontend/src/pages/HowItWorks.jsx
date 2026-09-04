@@ -1,5 +1,5 @@
 /**
- * How the system works, in four diagrams.
+ * How the system works, in seven diagrams.
  *
  * This screen exists because the assignment asks that "an engineer can inspect
  * why memory did or did not affect a result", and a reader who has just opened
@@ -8,7 +8,7 @@
  * of the machine that produced it.
  *
  * The diagrams are hand-drawn SVG rather than a rendered diagram language. They
- * are four fixed pictures, not generated ones, so a library would be weight
+ * are fixed pictures, not generated ones, so a library would be weight
  * without benefit - and inline paths inherit `currentColor`, which is what lets
  * them work in both themes without a second asset.
  */
@@ -86,7 +86,7 @@ export default function HowItWorks({ status }) {
       <PageHead
         eyebrow="screen 5 · how it works"
         title="What happens between speaking and being answered"
-        lede="Four pictures of the same system: what happens to a dictation, how Kivi decides whether it already knew something, what a question goes through, and what is actually stored."
+        lede="The same system from several angles: what happens to a dictation, how Kivi decides whether it already knew something, what a question goes through, what is actually stored, and the algorithms underneath it."
       />
 
       {/* ------------------------------------------------ 1. ingest */}
@@ -249,6 +249,155 @@ export default function HowItWorks({ status }) {
             <Pill mono>{status.transcripts} dictations</Pill>
           </div>
         ) : null}
+      </section>
+
+      {/* ------------------------------------------------ 5. the algorithms */}
+      <section className="how">
+        <h2 className="how__h">5 &middot; The algorithms, and why these ones</h2>
+        <p className="how__p">
+          Three pieces do the work: turning text into something comparable, deciding which
+          memories a question is about, and deciding whether to answer at all.
+        </p>
+
+        <h3 className="how__h3">Embeddings &mdash; hashed n-grams, no model</h3>
+        <p className="how__p">
+          A memory&rsquo;s text is cut into words, word pairs and four-character runs. Each piece
+          is hashed into one of 512 buckets, weighted by how rare it is, and the result is
+          normalised. No API, no download, no GPU &mdash; and the same text always lands in the
+          same place.
+        </p>
+
+        <Figure
+          caption="Four-character runs are what make it survive typos and word endings: pricing and prices share buckets."
+          viewBox="0 0 760 132"
+          height={132}
+        >
+          <Box x={4} y={46} w={132} title="Memory text" sub="what was said" />
+          <Arrow x1={140} y1={66} x2={176} y2={66} />
+          <Box x={180} y={16} w={126} h={32} title="words" tone="muted" />
+          <Box x={180} y={52} w={126} h={32} title="word pairs" tone="muted" />
+          <Box x={180} y={88} w={126} h={32} title="4-char runs" tone="muted" />
+          <path d="M176 66 L180 32" className="dg__thin" />
+          <path d="M176 66 L180 68" className="dg__thin" />
+          <path d="M176 66 L180 104" className="dg__thin" />
+
+          <Arrow x1={310} y1={66} x2={346} y2={66} label="blake2b" />
+          <Box x={350} y={46} w={140} title="512 buckets" sub="rarity-weighted" tone="store" />
+          <Arrow x1={494} y1={66} x2={530} y2={66} />
+          <Box x={534} y={46} w={128} title="One vector" sub="comparable" tone="good" />
+
+          <text x={674} y={58} className="dg__s dg__s--left">same text,</text>
+          <text x={674} y={70} className="dg__s dg__s--left">same vector,</text>
+          <text x={674} y={82} className="dg__s dg__s--left">any machine</text>
+        </Figure>
+
+        <p className="how__p">
+          The hash is <code>blake2b</code> rather than the language&rsquo;s built-in one, which is
+          seeded differently on every run &mdash; the same sentence would land somewhere new after
+          a restart and every stored vector would quietly rot. This way a reviewer on another
+          machine gets identical numbers.
+        </p>
+
+        <h3 className="how__h3">
+          Retrieval &mdash; three scores, because each covers the blind spot of the others
+        </h3>
+
+        <Figure
+          caption="A corrected memory is demoted, not filtered out, which is why what did I say before still has an answer."
+          viewBox="0 0 760 150"
+          height={150}
+        >
+          <Box x={4} y={54} w={104} title="Question" />
+
+          <Box x={148} y={4} w={168} h={36} title="Meaning &middot; 55%" sub="finds paraphrase" />
+          <Box x={148} y={52} w={168} h={36} title="Wording &middot; 30%" sub="finds names, rare words" />
+          <Box x={148} y={100} w={168} h={36} title="Recency &middot; 15%" sub="breaks ties" />
+          <path d="M112 74 L148 22" className="dg__arrow-path" markerEnd="url(#dg-head)" />
+          <path d="M112 74 L148 70" className="dg__arrow-path" markerEnd="url(#dg-head)" />
+          <path d="M112 74 L148 118" className="dg__arrow-path" markerEnd="url(#dg-head)" />
+
+          <path d="M320 22 L356 70" className="dg__thin" />
+          <path d="M320 70 L356 70" className="dg__thin" />
+          <path d="M320 118 L356 70" className="dg__thin" />
+          <Box x={360} y={54} w={116} title="One score" tone="decide" />
+
+          <Arrow x1={480} y1={74} x2={516} y2={74} label="superseded?" />
+          <Box x={520} y={54} w={124} title="&times; 0.45" sub="demoted, not cut" tone="warn" />
+          <Arrow x1={648} y1={74} x2={684} y2={74} />
+          <Box x={688} y={54} w={68} title="Top 8" tone="good" />
+        </Figure>
+
+        <p className="how__p">
+          Meaning-matching finds a paraphrase but blurs proper nouns; word-matching is what
+          rescues a rare name like <em>Rahul</em>, which meaning-matching treats as one dimension
+          among five hundred. Recency settles the rest.
+        </p>
+
+        <h3 className="how__h3">Refusing &mdash; a vocabulary check, deliberately not a judgement</h3>
+        <p className="how__p">
+          Word-matching always returns <em>something</em>. Ask for a bank account number and it
+          will happily hand back whichever dictation shares the most ordinary words. So before any
+          answer is written, Kivi checks a separate question: does the topic of the question appear
+          anywhere in what was retrieved?
+        </p>
+
+        <Figure
+          caption="This is why Kivi refusing does not depend on a model behaving well. The check is ordinary code, and it runs whichever engine is configured."
+          viewBox="0 0 760 130"
+          height={130}
+        >
+          <Box x={4} y={44} w={150} title="A question" sub="topic: phone, number" />
+          <Arrow x1={158} y1={64} x2={194} y2={64} />
+          <Box x={198} y={44} w={160} title="Top 8 memories" sub="best available match" tone="store" />
+          <Arrow x1={362} y1={64} x2={398} y2={64} />
+          <Box x={402} y={34} w={168} h={60} title="Does the topic appear" sub="in any of them?" tone="decide" />
+
+          <path d="M486 34 L486 12 L594 12" className="dg__arrow-path" markerEnd="url(#dg-head)" />
+          <text x={520} y={6} className="dg__l">no</text>
+          <Box x={598} y={0} w={158} h={34} title="Refuse" sub="whatever the score said" tone="warn" />
+
+          <path d="M486 94 L486 112 L594 112" className="dg__arrow-path" markerEnd="url(#dg-head)" />
+          <text x={520} y={106} className="dg__l">yes</text>
+          <Box x={598} y={94} w={158} h={34} title="Answer" sub="cite what supported it" tone="good" />
+        </Figure>
+
+        <div className="how__grid" style={{ marginTop: 16 }}>
+          <div className="how__col">
+            <div className="how__col-head how__col-head--yes">Why it is built this way</div>
+            <ul className="how__list">
+              <li>
+                The refusal gate is ordinary code, so &ldquo;does not invent answers&rdquo; is a
+                property of the system rather than of a model having a good day.
+              </li>
+              <li>
+                Retrieval and embedding are identical whichever engine is configured, so the
+                measured quality gap between rules and a model sits entirely in extraction &mdash;
+                62% against 97% recall on unseen phrasing.
+              </li>
+              <li>
+                Nothing is deleted anywhere in the scoring path. A correction lowers a score; it
+                never removes a row.
+              </li>
+            </ul>
+          </div>
+          <div className="how__col">
+            <div className="how__col-head how__col-head--no">What it costs</div>
+            <ul className="how__list">
+              <li>
+                Hashed embeddings match words and shapes, not concepts. A paraphrase sharing no
+                vocabulary is missed &mdash; the cause of both evaluation failures.
+              </li>
+              <li>
+                Every question rebuilds the word index and compares every vector. Milliseconds for
+                one person&rsquo;s history; it would need a real index at a much larger scale.
+              </li>
+              <li>
+                People and projects are recognised by capitalisation. Two colleagues sharing a
+                first name would merge.
+              </li>
+            </ul>
+          </div>
+        </div>
       </section>
 
       {/* ------------------------------------------------ roadmap */}
