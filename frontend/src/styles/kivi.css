@@ -1510,3 +1510,447 @@ code {
 .addrow__input:focus {
   outline: none;
 }
+
+/* ------------------------------------------------- hey kivi: the pipeline */
+/* The route a question takes, rendered twice with one shape: listed and empty
+   while the answer is pending, then the same rows carrying what the backend
+   reported. It is deliberately not a progress bar - one request produces the
+   whole answer, so the client cannot know which stage is running, and
+   animating a guess would be inventing information. */
+.pipe {
+  border: 1px solid var(--edge);
+  border-radius: var(--r-md);
+  background: var(--surface-1);
+  margin-top: 13px;
+}
+
+.pipe--pending {
+  border-style: dashed;
+}
+
+.pipe__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: lowercase;
+  color: var(--text-3);
+}
+
+.pipe__total { color: var(--green); }
+
+.pipe__list {
+  list-style: none;
+  margin: 0;
+  padding: 9px 14px 12px;
+  display: grid;
+  gap: 2px;
+}
+
+.pipe__step {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 10px;
+  padding: 7px 0;
+  position: relative;
+}
+
+/* A hairline joining the steps, so the four read as one route rather than
+   four unrelated rows. It stops short of the last marker. */
+.pipe__step:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 10px;
+  top: 26px;
+  bottom: -2px;
+  width: 1px;
+  background: var(--edge);
+}
+
+.pipe__n {
+  display: grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  border-radius: var(--r-pill);
+  background: var(--green-marker);
+  color: var(--green);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1;
+  z-index: 1;
+}
+
+.pipe--pending .pipe__n {
+  background: var(--surface-3);
+  color: var(--text-3);
+}
+
+.pipe__name {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-0);
+}
+
+.pipe__does {
+  font-size: 12.5px;
+  color: var(--text-2);
+  margin-top: 1px;
+}
+
+.pipe__fact {
+  font-size: 11.5px;
+  color: var(--green);
+  margin-top: 4px;
+}
+
+/* ------------------------------------------- hey kivi: the record layout */
+/* Modelled on Kivi's record screen: a marker-swiped serif line naming the
+   moment, one prominent card for the thing in hand with its metadata on a
+   footer bar, a quiet list of what came before, and a single figure in a rail
+   to the right. The shape carries the hierarchy - one thing to look at, one
+   list to scan, one number to glance at. */
+.rec {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 30px;
+  align-items: start;
+}
+
+.rec__title {
+  font-family: var(--font-display);
+  font-size: clamp(30px, 3.6vw, 46px);
+  font-weight: 300;
+  line-height: 1.08;
+  letter-spacing: -0.015em;
+  margin: 0 0 26px;
+  text-wrap: balance;
+}
+
+.rec__title mark {
+  background: var(--green-marker);
+  box-shadow: inset 0 -2px 0 var(--green-line);
+  color: var(--text-0);
+  padding: 0 0.12em 0.04em;
+  border-radius: 3px;
+}
+
+/* The card in hand. Padding is generous because it holds one thing. */
+.rec__card {
+  border: 1px solid var(--edge);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.rec__card-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  color: var(--text-3);
+  padding: 17px 20px 0;
+}
+
+.rec__card-body {
+  padding: 9px 20px 26px;
+  font-size: 17px;
+  color: var(--text-0);
+  min-height: 76px;
+}
+
+/* Metadata sits on its own bar rather than floating in the card, so the card
+   reads as content with a caption instead of a box of mixed weights. */
+.rec__card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 20px;
+  border-top: 1px solid var(--edge);
+  background: var(--surface-1);
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.rec__card-foot b {
+  color: var(--text-1);
+  font-weight: 500;
+}
+
+.keycap {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--green);
+  background: var(--green-marker);
+  border: 1px solid var(--green-line);
+  border-radius: var(--r-sm);
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+
+/* --- the list of what came before --- */
+.rec__section {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 30px 0 3px;
+}
+
+.rec__section-title {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.07em;
+  color: var(--text-2);
+}
+
+.rec__section-link {
+  all: unset;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+.rec__section-link:hover { color: var(--green); }
+.rec__section-link:focus-visible { outline: 2px solid var(--green-line); outline-offset: 3px; }
+
+.rec__note {
+  font-size: 12.5px;
+  color: var(--text-3);
+  margin: 0 0 9px;
+}
+
+.rec__row {
+  all: unset;
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 11px;
+  padding: 9px 2px;
+  border-bottom: 1px solid var(--edge);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.rec__row:hover .rec__row-text { color: var(--green); }
+.rec__row:focus-visible { outline: 2px solid var(--green-line); outline-offset: 2px; }
+
+/* A square rather than a disc: it reads as a record, not a bullet point. */
+.rec__row-mark {
+  width: 4px;
+  height: 4px;
+  background: var(--text-3);
+  transform: translateY(-3px);
+}
+
+.rec__row-text {
+  font-size: 14.5px;
+  color: var(--text-0);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rec__row-app {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+/* --- the figure in the rail --- */
+.rec__panel {
+  border: 1px solid var(--edge);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  padding: 19px 20px;
+  display: grid;
+  gap: 3px;
+}
+
+.rec__figure {
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 300;
+  line-height: 1;
+  color: var(--text-0);
+  font-variant-numeric: tabular-nums;
+}
+
+.rec__figure-label { font-size: 13.5px; color: var(--text-1); }
+.rec__figure-note { font-size: 12px; color: var(--text-3); }
+
+.rec__panel-rows {
+  margin-top: 14px;
+  padding-top: 13px;
+  border-top: 1px solid var(--edge);
+  display: grid;
+  gap: 7px;
+}
+
+.rec__panel-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.rec__panel-row b {
+  color: var(--text-0);
+  font-weight: 500;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 900px) {
+  .rec { grid-template-columns: 1fr; gap: 20px; }
+}
+
+/* ------------------------------------------------- how it works: diagrams */
+/* Four fixed pictures, drawn as inline SVG. Everything takes its colour from
+   currentColor or a token, so both themes work from one asset. */
+.how { margin-top: 40px; }
+
+.how__h {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 400;
+  margin: 0 0 8px;
+}
+
+.how__p {
+  max-width: 66ch;
+  color: var(--text-1);
+  font-size: 14.5px;
+  margin: 0 0 18px;
+}
+
+.dg {
+  margin: 0;
+  border: 1px solid var(--edge);
+  border-radius: var(--r-lg);
+  background: var(--surface-1);
+  padding: 16px 18px 13px;
+}
+
+/* A diagram is the one thing on this screen with a minimum width; let it
+   scroll inside its own box rather than widening the page. */
+.dg__scroll {
+  overflow-x: auto;
+  min-width: 0;
+}
+.dg__scroll svg { min-width: 660px; display: block; }
+
+.dg__cap {
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid var(--edge);
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+/* boxes */
+.dg__box rect {
+  fill: var(--surface-2);
+  stroke: var(--edge-inner);
+  stroke-width: 1;
+}
+.dg__box--store rect { fill: var(--surface-3); }
+.dg__box--decide rect { fill: var(--surface-2); stroke: var(--green-line); stroke-dasharray: 3 2.5; }
+.dg__box--good rect { fill: var(--green-marker); stroke: var(--green-line); }
+.dg__box--warn rect { fill: #2a2318; stroke: #4a3d24; }
+.dg__box--muted rect { fill: var(--surface-1); stroke: var(--edge); }
+
+.dg__t {
+  fill: var(--text-0);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  text-anchor: middle;
+}
+
+.dg__s {
+  fill: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  text-anchor: middle;
+}
+.dg__s--left { text-anchor: start; }
+
+.dg__l {
+  fill: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  text-anchor: middle;
+}
+
+/* arrows */
+.dg__arrow path,
+.dg__arrow-path {
+  fill: none;
+  stroke: var(--text-3);
+  stroke-width: 1.2;
+}
+.dg__head { fill: var(--text-3); }
+.dg__thin { fill: none; stroke: var(--edge-inner); stroke-width: 1; }
+
+/* the live counts under diagram 4 */
+.how__now {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+.how__now-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  color: var(--text-3);
+  margin-right: 2px;
+}
+
+/* built / not built */
+.how__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.how__col {
+  border: 1px solid var(--edge);
+  border-radius: var(--r-lg);
+  background: var(--surface-1);
+  padding: 15px 18px 17px;
+}
+
+.how__col-head {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: lowercase;
+  margin-bottom: 10px;
+}
+.how__col-head--yes { color: var(--green); }
+.how__col-head--no { color: var(--text-3); }
+
+.how__list {
+  margin: 0;
+  padding-left: 16px;
+  display: grid;
+  gap: 6px;
+  font-size: 13.5px;
+  color: var(--text-1);
+}
+.how__list li::marker { color: var(--text-3); }
+
+.how__note {
+  margin: 13px 0 0;
+  font-size: 12.5px;
+  color: var(--text-3);
+}

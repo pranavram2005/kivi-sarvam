@@ -12,6 +12,7 @@ import History from "./pages/History";
 import HeyKivi from "./pages/HeyKivi";
 import Knowledge from "./pages/Knowledge";
 import Inspector from "./pages/Inspector";
+import HowItWorks from "./pages/HowItWorks";
 import { api } from "./services/api";
 import { ErrorBanner } from "./components/ui";
 
@@ -39,6 +40,13 @@ const Icon = {
       <path d="M2.2 4.2h11.6M2.2 8h11.6M2.2 11.8h7.2" />
     </>
   ),
+  route: (
+    <>
+      <circle cx="4" cy="4" r="2.1" />
+      <circle cx="12" cy="12" r="2.1" />
+      <path d="M4 6.1v3.4a2.5 2.5 0 002.5 2.5h3.4" />
+    </>
+  ),
 };
 
 const SCREENS = [
@@ -46,6 +54,7 @@ const SCREENS = [
   { key: "kivi", label: "hey kivi", icon: "spark", hint: "ask a question" },
   { key: "knows", label: "memory", icon: "layers", hint: "what Kivi knows" },
   { key: "inspect", label: "inspector", icon: "list", hint: "evidence and evaluation" },
+  { key: "how", label: "how it works", icon: "route", hint: "the system, in diagrams" },
 ];
 
 const KEYS = SCREENS.map((s) => s.key);
@@ -225,6 +234,8 @@ export default function App() {
           <HeyKivi onRefresh={refresh} />
         ) : screen === "knows" ? (
           <Knowledge onRefresh={refresh} />
+        ) : screen === "how" ? (
+          <HowItWorks status={status} />
         ) : (
           <Inspector status={status} />
         )}

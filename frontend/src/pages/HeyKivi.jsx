@@ -149,11 +149,17 @@ export default function HeyKivi({ onRefresh }) {
 
   return (
     <div className="page page--chat">
-      <PageHead
-        eyebrow="screen 2 · hey kivi"
-        title="Ask, and see why"
-        lede="Kivi answers only from what it has learned in your dictations. Every answer shows the memories behind it — and says so plainly when your history does not contain the answer."
-      />
+      {/* On the opening screen the greeting is the header - the record screen
+          leads with one line, not a title above a line. Once a conversation
+          has started the page needs its own identity back, so the head
+          returns. */}
+      {started ? (
+        <PageHead
+          eyebrow="screen 2 · hey kivi"
+          title="Ask, and see why"
+          lede="Kivi answers only from what it has learned in your dictations. Every answer shows the memories behind it — and says so plainly when your history does not contain the answer."
+        />
+      ) : null}
 
       <ErrorBanner error={error} />
 
@@ -197,9 +203,12 @@ export default function HeyKivi({ onRefresh }) {
         {asking ? (
           <div className="turn turn--kivi">
             <KiviMark />
-            <div className="thinking">
-              <Spinner />
-              <span>Searching your memory…</span>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div className="thinking">
+                <Spinner />
+                <span>Working through your memory…</span>
+              </div>
+              <Pipeline pending />
             </div>
           </div>
         ) : null}
@@ -291,10 +300,27 @@ function KiviMark() {
 }
 
 /* ---------------------------------------------------------------- welcome */
-function Welcome({ suggestions, onPick, stats, earlier, onEarlier, loadingEarlier }) {
-  // Grouped by what each question *demonstrates*, so the first thing a new
-  // reader learns is that Kivi can also refuse — the behaviour the product is
-  // really built around.
+/**
+ * The opening screen, built on the shape of Kivi's own record page: a
+ * marker-swiped line naming the moment, one card for the thing in hand, a
+ * quiet list of what came before, and a single figure in the rail.
+ */
+function greeting(now = new Date()) {
+  const h = now.getHours();
+  if (h < 5) return ["night owl hours", "ask quietly."];
+  if (h < 12) return ["morning", "what do you need to remember?"];
+  if (h < 17) return ["afternoon", "ask what you already told me."];
+  if (h < 22) return ["evening", "let's check what you said today."];
+  return ["late", "ask, and I'll keep it short."];
+}
+
+function Welcome({ suggestions, onPick, stats, earlier, onEarlier, loadingEarlier, history }) {
+  const [lead, tail] = greeting();
+  const summary = stats?.summary;
+
+  // The four suggestions are grouped by what each one demonstrates, so the
+  // first thing a reader learns is that Kivi can also refuse - the behaviour
+  // the product is really built around.
   const groups = [
     { label: "Recall", match: /prepare|discussing|say about|owe/i },
     { label: "Scheduling", match: /when is my|when is the/i },
@@ -304,57 +330,80 @@ function Welcome({ suggestions, onPick, stats, earlier, onEarlier, loadingEarlie
     .map((g) => ({ ...g, picks: suggestions.filter((s) => g.match.test(s)) }))
     .filter((g) => g.picks.length);
 
+  const first = groups[0]?.picks?.[0] || suggestions[0] || null;
+  const rest = groups.flatMap((g) => g.picks.slice(0, 1)).filter((q) => q !== first);
+
   return (
-    <div className="welcome">
-      <div className="welcome__intro">
-        <KiviMark />
-        <p>
-          Ask me about the people you work with, what you have coming up, or what you still
-          owe someone. I'll only tell you what you've actually said — and I'll say so when
-          I don't know.
-        </p>
+    <div className="rec">
+      <div style={{ minWidth: 0 }}>
+        <h2 className="rec__title">
+          <mark>{lead}</mark> — {tail}
+        </h2>
+
+        <div className="rec__card">
+          <div className="rec__card-label">try asking</div>
+          <div className="rec__card-body">
+            {first || "Ask me about the people you work with, what you have coming up, or what you still owe someone."}
+          </div>
+          <div className="rec__card-foot">
+            <span>
+              <b>Hey Kivi</b> answers only from your dictations
+            </span>
+            <span>
+              press <span className="keycap">Enter</span> to ask
+            </span>
+          </div>
+        </div>
+
+        {rest.length ? (
+          <>
+            <div className="rec__section">
+              <span className="rec__section-title">or try one of these</span>
+              {earlier ? (
+                <button className="rec__section-link" onClick={onEarlier} disabled={loadingEarlier}>
+                  {loadingEarlier ? "loading…" : `${earlier} earlier →`}
+                </button>
+              ) : null}
+            </div>
+            {groups.map((g) =>
+              g.picks.slice(0, 1).map((q) => (
+                <button className="rec__row" key={q} onClick={() => onPick(q)}>
+                  <span className="rec__row-mark" aria-hidden="true" />
+                  <span className="rec__row-text">{q}</span>
+                  <span className="rec__row-app">{g.label}</span>
+                </button>
+              )),
+            )}
+          </>
+        ) : null}
       </div>
 
-      {groups.length ? (
-        <div className="welcome__groups">
-          {groups.map((g) => (
-            <div className="welcome__group" key={g.label}>
-              <div className="welcome__group-label">{g.label}</div>
-              {g.picks.slice(0, 2).map((s) => (
-                <button key={s} className="welcome__pick" onClick={() => onPick(s)}>
-                  {s}
-                </button>
-              ))}
+      <aside className="rec__panel">
+        <div className="rec__figure">{summary?.total ?? 0}</div>
+        <div className="rec__figure-label">
+          question{summary?.total === 1 ? "" : "s"} answered from memory
+        </div>
+        <div className="rec__figure-note">
+          {summary?.total ? "every one traceable to what you said" : "nothing asked yet — start above"}
+        </div>
+
+        {summary?.total ? (
+          <div className="rec__panel-rows">
+            <div className="rec__panel-row">
+              <span>refused honestly</span>
+              <b>{summary.abstained}</b>
             </div>
-          ))}
-        </div>
-      ) : null}
-
-      {earlier ? (
-        <div className="welcome__earlier">
-          <button className="chip" onClick={onEarlier} disabled={loadingEarlier}>
-            {loadingEarlier ? <Spinner /> : null} show {earlier} earlier question
-            {earlier === 1 ? "" : "s"}
-          </button>
-        </div>
-      ) : null}
-
-      {stats?.summary?.total ? (
-        <div className="welcome__stats">
-          <span>
-            <b>{stats.summary.total}</b> asked
-          </span>
-          <span>
-            <b>{stats.summary.abstained}</b> refused honestly
-          </span>
-          <span>
-            <b>{formatPercent(stats.summary.supported_rate, 0)}</b> grounded
-          </span>
-          <span>
-            <b>{Math.round(stats.summary.avg_total_latency_ms)} ms</b> average
-          </span>
-        </div>
-      ) : null}
+            <div className="rec__panel-row">
+              <span>grounded in memory</span>
+              <b>{formatPercent(summary.supported_rate, 0)}</b>
+            </div>
+            <div className="rec__panel-row">
+              <span>average answer</span>
+              <b>{Math.round(summary.avg_total_latency_ms)} ms</b>
+            </div>
+          </div>
+        ) : null}
+      </aside>
     </div>
   );
 }
@@ -366,6 +415,96 @@ const SHAPES = {
   unsupported: { tone: "rose", icon: "!", label: "Unsupported" },
   grounded: { tone: "good", icon: "✓", label: "Grounded" },
 };
+
+/**
+ * What a question goes through, shown twice with the same shape.
+ *
+ * While the answer is pending the stages are listed with nothing filled in;
+ * once it arrives the same rows carry the real numbers the backend reported.
+ * Deliberately not a progress bar: one HTTP request produces the whole answer,
+ * so the client cannot know which stage is running, and animating a guess
+ * would be inventing information. An empty row that fills in is honest about
+ * what is known and when.
+ */
+function Pipeline({ answer = null, pending = false }) {
+  const d = answer?.diagnostics || {};
+  const retrieved = answer?.retrieved_memory_ids?.length;
+  const used = answer?.used_memory_ids?.length;
+  const ms = (v) => (v || v === 0 ? `${Math.round(v)} ms` : null);
+
+  const stages = [
+    {
+      n: 1,
+      name: "Read the question",
+      does: "Works out what is being asked and which people or projects it names.",
+      fact: answer
+        ? [answer.intent, answer.entities?.length ? answer.entities.join(", ") : null]
+            .filter(Boolean)
+            .join(" · ")
+        : null,
+    },
+    {
+      n: 2,
+      name: "Search memory",
+      does: "Scores every active memory on meaning, wording and recency, and keeps the best few.",
+      fact: answer
+        ? [retrieved != null ? `${retrieved} retrieved` : null, ms(d.retrieval_latency_ms)]
+            .filter(Boolean)
+            .join(" · ")
+        : null,
+    },
+    {
+      n: 3,
+      name: "Check the memory supports it",
+      does: "Refuses rather than guesses if nothing retrieved actually mentions the topic.",
+      fact: answer
+        ? answer.abstained
+          ? "abstained — nothing supported it"
+          : answer.supported
+            ? "supported"
+            : "unsupported"
+        : null,
+    },
+    {
+      n: 4,
+      name: "Answer from what was found",
+      does: "Builds the answer only from the memories it kept, and cites them.",
+      fact: answer
+        ? [
+            used != null ? `${used} used` : null,
+            ms(d.llm_latency_ms),
+            d.provider ? `${d.provider}${d.model && d.model !== d.provider ? ` · ${d.model}` : ""}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")
+        : null,
+    },
+  ];
+
+  return (
+    <div className={`pipe${pending ? " pipe--pending" : ""}`}>
+      <div className="pipe__head">
+        {pending ? "What Kivi is doing" : "How this answer was produced"}
+        {!pending && d.total_latency_ms ? (
+          <span className="pipe__total mono">{Math.round(d.total_latency_ms)} ms total</span>
+        ) : null}
+      </div>
+
+      <ol className="pipe__list">
+        {stages.map((st) => (
+          <li className="pipe__step" key={st.n}>
+            <span className="pipe__n">{st.n}</span>
+            <div className="pipe__body">
+              <div className="pipe__name">{st.name}</div>
+              <div className="pipe__does">{st.does}</div>
+              {st.fact ? <div className="pipe__fact mono">{st.fact}</div> : null}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
 
 function Answer({ answer, restored = false }) {
   const [showSources, setShowSources] = useState(false);
@@ -453,6 +592,12 @@ function Answer({ answer, restored = false }) {
             ))}
           </div>
         ) : null}
+
+        {/* The route the answer took, always visible: the same four rows that
+            were empty while it was pending, now carrying what actually
+            happened. "Show working" below goes a level deeper into the
+            retrieval ranking. */}
+        <Pipeline answer={answer} />
 
         {showWorking ? <Working answer={answer} /> : null}
       </div>

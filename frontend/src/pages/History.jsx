@@ -277,6 +277,7 @@ export default function History({ onRefresh }) {
       </div>
 
       <StatsStrip
+        defaultOpen
         title="What you said, and how much of it Kivi kept"
         load={api.historyAnalytics}
         render={(d) => (
