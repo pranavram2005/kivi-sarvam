@@ -361,6 +361,48 @@ export default function HowItWorks({ status }) {
           <Box x={598} y={94} w={158} h={34} title="Answer" sub="cite what supported it" tone="good" />
         </Figure>
 
+        <h3 className="how__h3">Where a model fits &mdash; and where it deliberately does not</h3>
+        <p className="how__p">
+          Everything above runs without one. A model, when configured, is used in exactly three
+          places and nowhere else.
+        </p>
+
+        <Figure
+          caption="The pieces a model touches are the judgements. The pieces that decide whether to answer at all are not."
+          viewBox="0 0 760 156"
+          height={156}
+        >
+          <text x={8} y={16} className="dg__s dg__s--left">A MODEL DECIDES</text>
+          <Box x={8} y={26} w={168} h={38} title="Extract" sub="what is worth keeping" tone="good" />
+          <Box x={188} y={26} w={168} h={38} title="Reconcile" sub="new / duplicate / replaces" tone="good" />
+          <Box x={368} y={26} w={168} h={38} title="Compose" sub="wording of the answer" tone="good" />
+
+          <text x={8} y={96} className="dg__s dg__s--left">CODE DECIDES</text>
+          <Box x={8} y={106} w={140} h={38} title="Embed" sub="hashed n-grams" tone="store" />
+          <Box x={160} y={106} w={140} h={38} title="Rank" sub="the three scores" tone="store" />
+          <Box x={312} y={106} w={168} h={38} title="Refuse or answer" sub="the support check" tone="store" />
+          <Box x={492} y={106} w={140} h={38} title="Store" sub="statuses, audit" tone="store" />
+
+          <text x={556} y={40} className="dg__s dg__s--left">swap the model,</text>
+          <text x={556} y={52} className="dg__s dg__s--left">these change</text>
+          <text x={652} y={98} className="dg__s dg__s--left">these do not</text>
+        </Figure>
+
+        <p className="how__p">
+          The split is the point. If a model also decided whether an answer was supported, then
+          &ldquo;Kivi does not invent answers&rdquo; would be a claim about that model on that day.
+          Because the check is ordinary code, the guarantee holds whichever engine is configured
+          &mdash; and it is why the offline engine and a hosted model produce the same refusals
+          from the same history.
+        </p>
+
+        <p className="how__p">
+          What a model does change is how much gets learned in the first place. On dictations
+          phrased in a voice the rules were never tuned on, extraction recall goes from 62% to
+          97%. Retrieval and embedding are identical in both paths, so that entire gap is
+          extraction &mdash; which is the honest answer to what the model is for.
+        </p>
+
         <div className="how__grid" style={{ marginTop: 16 }}>
           <div className="how__col">
             <div className="how__col-head how__col-head--yes">Why it is built this way</div>
