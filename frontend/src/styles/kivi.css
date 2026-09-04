@@ -1954,3 +1954,49 @@ code {
   font-size: 12.5px;
   color: var(--text-3);
 }
+
+/* --- pipeline: the live states --- */
+/* A waiting step is dimmed, a running one carries a pulse and full contrast, a
+   finished one keeps a green tick. The distinction has to survive a glance at
+   arm's length, so it is carried by opacity and colour together rather than by
+   colour alone. */
+.pipe__step--wait { opacity: 0.42; }
+
+.pipe__step--wait .pipe__n {
+  background: var(--surface-3);
+  color: var(--text-3);
+}
+
+.pipe__step--run .pipe__n {
+  background: var(--green-marker);
+  color: var(--green);
+  box-shadow: 0 0 0 3px var(--green-soft);
+}
+
+.pipe__step--done .pipe__n {
+  background: var(--green-marker);
+  color: var(--green);
+}
+
+.pipe--pending .pipe__step--run .pipe__name { color: var(--text-0); }
+.pipe--pending .pipe__step--run .pipe__fact { color: var(--green); }
+
+/* The pulse is the only motion on the screen while a question is in flight,
+   which is what makes it read as "this is the step that is working". */
+.pipe__pulse {
+  display: block;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-pill);
+  background: var(--green);
+  animation: pipe-pulse 1.1s var(--ease) infinite;
+}
+
+@keyframes pipe-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.72); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pipe__pulse { animation: none; }
+}
