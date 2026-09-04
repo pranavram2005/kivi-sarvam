@@ -182,6 +182,87 @@ def memory_analytics() -> dict[str, Any]:
 # Queries — how Kivi answers
 # ---------------------------------------------------------------------------
 @router.get("/queries")
+def _signal_contributions(conn, user: str) -> dict[str, Any]:
+    """How much each retrieval signal actually contributes, measured.
+
+    `backend/memory/retriever.py` combines six signals, of which three carry a
+    configurable weight and three are structural bonuses. Reading the code it is
+    not obvious which dominates - the weights are visible and the bonuses are
+    not, so it is easy to describe retrieval as "0.55 semantic, 0.30 lexical,
+    0.15 recency" and be describing under half of it.
+
+    Every query stores its full ranking, per signal, so this does not have to be
+    argued from the source. It takes the top-ranked memory of each answered
+    question - the one the score actually chose - and averages what each signal
+    put into that score, with the configured weights already applied so the
+    numbers are comparable.
+
+    It is a description of the questions this installation has been asked, not a
+    law about retrieval: a corpus of questions that all name a person will find
+    the entity bonus dominant, because it is.
+    """
+    rows = conn.execute(
+        "SELECT retrieval_detail FROM query_logs "
+        "WHERE user_id = ? AND retrieval_detail IS NOT NULL",
+        (user,),
+    ).fetchall()
+
+    settings = get_settings()
+    weighted = {
+        "semantic": settings.semantic_weight,
+        "lexical": settings.lexical_weight,
+        "recency": settings.recency_weight,
+    }
+    labels = {
+        "semantic": "meaning",
+        "lexical": "wording",
+        "recency": "recency",
+        "entity_bonus": "names a person or project",
+        "type_bonus": "right kind of memory",
+        "coverage": "covers the question's words",
+    }
+
+    totals: dict[str, float] = {k: 0.0 for k in labels}
+    counted = 0
+    for row in rows:
+        try:
+            ranking = json.loads(row["retrieval_detail"]) or []
+        except (TypeError, ValueError):
+            continue
+        if not ranking:
+            continue
+        top = ranking[0]
+        counted += 1
+        for key in labels:
+            value = float(top.get(key) or 0.0)
+            totals[key] += value * weighted.get(key, 1.0)
+
+    if not counted:
+        return {"queries": 0, "signals": []}
+
+    means = {k: v / counted for k, v in totals.items()}
+    grand = sum(means.values()) or 1.0
+    signals = sorted(
+        (
+            {
+                "key": k,
+                "label": labels[k],
+                "mean": round(v, 4),
+                "share": round(v / grand, 4),
+                "weighted": k in weighted,
+            }
+            for k, v in means.items()
+        ),
+        key=lambda d: -d["mean"],
+    )
+    structural = sum(d["share"] for d in signals if not d["weighted"])
+    return {
+        "queries": counted,
+        "signals": signals,
+        "structural_share": round(structural, 4),
+    }
+
+
 def query_analytics() -> dict[str, Any]:
     user = get_settings().default_user_id
     conn = store.get_connection()
@@ -213,6 +294,7 @@ def query_analytics() -> dict[str, Any]:
     ]
 
     return {
+        "signal_contributions": _signal_contributions(conn, user),
         "summary": {
             "total": n,
             "abstained": q["ab"] or 0,

@@ -269,6 +269,31 @@ Four signals, because each fails somewhere the others do not
 | **Recency** — 45-day half-life, boosted for time questions | "when is my meeting" should not surface March | buries durable facts |
 | **Structure** — entity match, intent→type and intent→attribute boosts, extraction confidence, status | the strongest signal available | too coarse on its own |
 
+**The weights are the smaller half.** Three of those signals carry a
+configurable weight and three are structural bonuses that are added outright, so
+describing retrieval as "0.55 semantic, 0.30 lexical, 0.15 recency" describes
+under half of it. Every answered question stores its full ranking per signal, so
+this does not have to be argued from the source - `/api/analytics/queries`
+reports it, and the *How it works* screen renders it live. On the questions this
+installation has been asked so far:
+
+| Signal | Mean contribution | Share |
+| --- | ---: | ---: |
+| names a person or project *(structural)* | 0.285 | 22.6% |
+| right kind of memory *(structural)* | 0.276 | 21.9% |
+| meaning — weighted 0.55 | 0.253 | 20.1% |
+| wording — weighted 0.30 | 0.244 | 19.4% |
+| recency — weighted 0.15 | 0.106 | 8.4% |
+| covers the question's words *(structural)* | 0.098 | 7.7% |
+
+The three signals with no configurable weight account for **52%** of the score.
+That is a fact about these questions rather than a law about retrieval - a
+question set that always names a person will find the entity bonus dominant,
+because it is - but it is worth knowing before tuning a weight expecting it to
+matter. It also says where effort would pay: entity matching is both the largest
+single signal and the weakest implementation, recognised by capitalisation
+alone.
+
 Three details that mattered more than the weights:
 
 **Reading the question comes before searching.** `backend/memory/query.py`

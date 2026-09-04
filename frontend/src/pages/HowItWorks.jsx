@@ -12,6 +12,8 @@
  * without benefit - and inline paths inherit `currentColor`, which is what lets
  * them work in both themes without a second asset.
  */
+import { useEffect, useState } from "react";
+import { api } from "../services/api";
 import { PageHead, Pill } from "../components/ui";
 
 /* --------------------------------------------------------------- primitives */
@@ -70,6 +72,77 @@ function Figure({ caption, viewBox, height, children }) {
       </div>
       <figcaption className="dg__cap">{caption}</figcaption>
     </figure>
+  );
+}
+
+/**
+ * What each retrieval signal actually contributed, read from the query log.
+ *
+ * Six signals go into a score and only three of them carry a visible weight,
+ * which makes retrieval easy to describe wrongly - "0.55 semantic, 0.30
+ * lexical, 0.15 recency" is under half of it. Rather than restate that claim in
+ * prose, this asks the system: every answered question stored its full ranking
+ * per signal, and this is the average of what each one put into the memory the
+ * score actually chose.
+ *
+ * It moves as questions are asked, which is the point - it is a measurement of
+ * this installation, not a constant baked into the page.
+ */
+function SignalTable() {
+  const [data, setData] = useState(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .queryAnalytics()
+      .then((d) => alive && setData(d?.signal_contributions || null))
+      .catch(() => alive && setFailed(true));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (failed) return null;
+  if (!data) return <div className="sig sig--empty">measuring…</div>;
+  if (!data.queries) {
+    return (
+      <div className="sig sig--empty">
+        No questions asked yet — ask something on Hey Kivi and this fills in.
+      </div>
+    );
+  }
+
+  const top = data.signals[0]?.share || 1;
+
+  return (
+    <div className="sig">
+      <div className="sig__head">
+        <span>mean contribution to the memory the score chose</span>
+        <span className="mono">{data.queries} questions</span>
+      </div>
+
+      {data.signals.map((s) => (
+        <div className="sig__row" key={s.key}>
+          <span className="sig__label">
+            {s.label}
+            {s.weighted ? null : <span className="sig__tag">structural</span>}
+          </span>
+          <span className="sig__bar">
+            <span
+              className={`sig__fill${s.weighted ? "" : " sig__fill--structural"}`}
+              style={{ width: `${(s.share / top) * 100}%` }}
+            />
+          </span>
+          <span className="sig__pct mono">{(s.share * 100).toFixed(1)}%</span>
+        </div>
+      ))}
+
+      <div className="sig__foot">
+        The three signals with no configurable weight account for{" "}
+        <b>{(data.structural_share * 100).toFixed(0)}%</b> of the score.
+      </div>
+    </div>
   );
 }
 
@@ -303,34 +376,57 @@ export default function HowItWorks({ status }) {
         </h3>
 
         <Figure
-          caption="A corrected memory is demoted, not filtered out, which is why what did I say before still has an answer."
-          viewBox="0 0 760 150"
-          height={150}
+          caption="Three signals carry a configurable weight; three are structural bonuses with none. Measured, the bonuses are the larger half."
+          viewBox="0 0 760 214"
+          height={214}
         >
-          <Box x={4} y={54} w={104} title="Question" />
+          <Box x={4} y={86} w={100} title="Question" />
 
-          <Box x={148} y={4} w={168} h={36} title="Meaning &middot; 55%" sub="finds paraphrase" />
-          <Box x={148} y={52} w={168} h={36} title="Wording &middot; 30%" sub="finds names, rare words" />
-          <Box x={148} y={100} w={168} h={36} title="Recency &middot; 15%" sub="breaks ties" />
-          <path d="M112 74 L148 22" className="dg__arrow-path" markerEnd="url(#dg-head)" />
-          <path d="M112 74 L148 70" className="dg__arrow-path" markerEnd="url(#dg-head)" />
-          <path d="M112 74 L148 118" className="dg__arrow-path" markerEnd="url(#dg-head)" />
+          <text x={140} y={12} className="dg__s dg__s--left">WEIGHTED</text>
+          <Box x={140} y={18} w={186} h={32} title="Meaning &middot; 0.55" sub="finds paraphrase" />
+          <Box x={140} y={54} w={186} h={32} title="Wording &middot; 0.30" sub="finds names, rare words" />
+          <Box x={140} y={90} w={186} h={32} title="Recency &middot; 0.15" sub="breaks ties" />
 
-          <path d="M320 22 L356 70" className="dg__thin" />
-          <path d="M320 70 L356 70" className="dg__thin" />
-          <path d="M320 118 L356 70" className="dg__thin" />
-          <Box x={360} y={54} w={116} title="One score" tone="decide" />
+          <text x={140} y={140} className="dg__s dg__s--left">STRUCTURAL &mdash; NO WEIGHT, ADDED DIRECTLY</text>
+          <Box x={140} y={146} w={186} h={26} title="Names a person &middot; +0.40" tone="muted" />
+          <Box x={140} y={176} w={186} h={26} title="Right kind of memory" tone="muted" />
+          <Box x={140} y={206} w={186} h={26} title="Covers the words &middot; +0.28" tone="muted" />
 
-          <Arrow x1={480} y1={74} x2={516} y2={74} label="superseded?" />
-          <Box x={520} y={54} w={124} title="&times; 0.45" sub="demoted, not cut" tone="warn" />
-          <Arrow x1={648} y1={74} x2={684} y2={74} />
-          <Box x={688} y={54} w={68} title="Top 8" tone="good" />
+          <path d="M108 106 L140 34" className="dg__arrow-path" markerEnd="url(#dg-head)" />
+          <path d="M108 106 L140 70" className="dg__arrow-path" markerEnd="url(#dg-head)" />
+          <path d="M108 106 L140 106" className="dg__arrow-path" markerEnd="url(#dg-head)" />
+          <path d="M108 106 L140 159" className="dg__thin" />
+          <path d="M108 106 L140 189" className="dg__thin" />
+
+          <path d="M330 34 L366 106" className="dg__thin" />
+          <path d="M330 70 L366 106" className="dg__thin" />
+          <path d="M330 106 L366 106" className="dg__thin" />
+          <path d="M330 159 L366 106" className="dg__thin" />
+          <path d="M330 189 L366 106" className="dg__thin" />
+
+          <Box x={370} y={86} w={112} title="One score" tone="decide" />
+          <Arrow x1={486} y1={106} x2={518} y2={106} label="superseded?" />
+          <Box x={522} y={86} w={118} title="&times; 0.45" sub="demoted, not cut" tone="warn" />
+          <Arrow x1={644} y1={106} x2={676} y2={106} />
+          <Box x={680} y={86} w={64} title="Top 8" tone="good" />
         </Figure>
+
+        <p className="how__p">
+          The weights are the visible part and the smaller part. Naming a person adds up to
+          0.40 outright; a typical meaning score of 0.4 contributes 0.55 &times; 0.4, about
+          0.22. Rather than argue that from the source, every question stores its full ranking
+          per signal, so the system can be asked directly:
+        </p>
+
+        <SignalTable />
 
         <p className="how__p">
           Meaning-matching finds a paraphrase but blurs proper nouns; word-matching is what
           rescues a rare name like <em>Rahul</em>, which meaning-matching treats as one dimension
-          among five hundred. Recency settles the rest.
+          among five hundred. Recency settles ties. But on the questions this installation has
+          actually been asked, the structural signals decide more of the ranking than the
+          weighted ones do &mdash; which is a fact about these questions, not a law: a corpus of
+          questions that all name a person will find the entity bonus dominant, because it is.
         </p>
 
         <h3 className="how__h3">Refusing &mdash; a vocabulary check, deliberately not a judgement</h3>
@@ -442,46 +538,6 @@ export default function HowItWorks({ status }) {
         </div>
       </section>
 
-      {/* ------------------------------------------------ roadmap */}
-      <section className="how">
-        <h2 className="how__h">Built, and not built</h2>
-        <p className="how__p">
-          The assignment asks for a system narrow enough to finish and complete enough to
-          interrogate. This is where that line was drawn.
-        </p>
-
-        <div className="how__grid">
-          <div className="how__col">
-            <div className="how__col-head how__col-head--yes">Built</div>
-            <ul className="how__list">
-              <li>Five memory types, extracted and typed from plain dictation</li>
-              <li>Deliberate ignoring, with the reason recorded</li>
-              <li>Corrections that supersede without destroying</li>
-              <li>Conflicts surfaced rather than silently resolved</li>
-              <li>Refusal when the history does not support an answer</li>
-              <li>Provenance from any answer back to the words spoken</li>
-              <li>Correct, forget, restore, and delete a dictation</li>
-              <li>A reproducible evaluation over the whole pipeline</li>
-            </ul>
-          </div>
-
-          <div className="how__col">
-            <div className="how__col-head how__col-head--no">Not built</div>
-            <ul className="how__list">
-              <li>Accounts and sign-in — one user, no authentication</li>
-              <li>Separating personal context from work context</li>
-              <li>Organisation policy and administrator controls</li>
-              <li>Finding a dictation by time or application</li>
-              <li>Identity resolution — two people sharing a first name merge</li>
-              <li>Pacing requests to a model's rate limit</li>
-            </ul>
-            <p className="how__note">
-              Each of these was left out because no chosen use case required it — not because it
-              was overlooked. The README says the same, at length.
-            </p>
-          </div>
-        </div>
-      </section>
     </div>
   );
 }
