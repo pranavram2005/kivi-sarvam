@@ -426,6 +426,27 @@ On **What Kivi Knows**, every memory can be:
   destroyed.
 - **Put back** — anything superseded, forgotten or rejected can be reinstated.
 
+On **History**, a dictation itself can be **deleted**. Correcting a memory
+assumes the dictation should have been remembered and only the wording was
+wrong. Deleting covers the other case: something said into the wrong window, or
+said and then regretted, where the right answer is that Kivi should not have it
+at all.
+
+Deleting is reversible and non-destructive, for the same reason forgetting a
+memory is. The transcript row and its memories are kept; the dictation is hidden
+from History, from the corpus count and from retrieval, and every `ACTIVE` memory
+it produced becomes `DELETED` with a `FORGOTTEN` audit event naming the reason.
+Memories already `SUPERSEDED` are deliberately left alone — restoring a
+dictation must not resurrect a belief that something later corrected.
+
+A hard delete was the wrong choice here and the schema shows why:
+`memories.source_transcript_id` is `ON DELETE CASCADE`, so removing the row
+would take the memories and their events with it, and answers already in the
+query log would cite rows that no longer exist. An answer whose provenance
+cannot be reconstructed is worse than one that was never given. The undo bar
+says how many memories went with the dictation, so the consequence is visible
+before it is accepted rather than after.
+
 The screen speaks product language throughout: *Current* / *Replaced* /
 *Forgotten* / *Not trusted*, and *Fact* / *Preference* / *Discussion* /
 *Commitment* / *Scheduled*. No ids, embeddings, vector dimensions or prompt
@@ -735,6 +756,25 @@ Known and honest.
   their words, so *"the dictation I did around 5 PM yesterday in Slack"* still
   has no path. Adding the metadata filters is small; it was left out because no
   chosen use case required it.
+- **A configured model degrades to rules rather than failing, which is easy to
+  mistake for the model working.** If a provider is unreachable, over quota or
+  returns something unusable, that call falls back to the offline engine and the
+  run continues. That is the behaviour a 500-record ingest needs — one bad
+  response should not end it — but it means a corpus can be extracted largely by
+  rules while the configuration still names a model.
+
+  It is not hypothetical. Gemini's free tier allows 15 requests per minute per
+  project per model, and a record costs one extraction call plus a reconciliation
+  call per candidate memory. Measured here, `--workers 6` had **194 of 225
+  records (86%) rate limited into the offline engine**, and the run reported a
+  clean completion.
+
+  The mitigation is disclosure rather than prevention: `process_corpus.py` counts
+  the fallbacks, separates the ones that were rate limited, and says so after the
+  timing line; each affected row keeps `[fell back to the offline engine: ...]`
+  in its rationale, readable per dictation in the Inspector; and `RUN.md` says to
+  keep `--workers 1` on a free tier. The right fix is a rate limiter that paces
+  requests to the quota instead of retrying into it, which is not built.
 
 ---
 
