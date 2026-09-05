@@ -58,6 +58,8 @@
 }
 
 .turn--kivi {
+  /* The page scrolls a new reply to the top; leave it a little air. */
+  scroll-margin-top: 18px;
   align-items: flex-start;
 }
 

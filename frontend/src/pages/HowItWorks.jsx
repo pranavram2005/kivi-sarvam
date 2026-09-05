@@ -13,6 +13,7 @@
  * them work in both themes without a second asset.
  */
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { api } from "../services/api";
 import { PageHead, Pill } from "../components/ui";
 
@@ -186,6 +187,48 @@ function Index() {
   );
 }
 
+/**
+ * Back to the top, once there is a top to go back to.
+ *
+ * This page is seven sections and ten diagrams long, and the index that would
+ * take you elsewhere is at the very top of it - so from section 6 the only way
+ * back to the index is a long scroll. The button appears after the first
+ * screenful and not before, because a control that does nothing is worse than
+ * no control.
+ */
+function ToTop() {
+  const [shown, setShown] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setShown(window.scrollY > 700);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Rendered into the body rather than into the page.
+  //
+  // `.page` carries an entrance animation, and an element with a transform -
+  // even the identity transform it settles on - becomes the containing block
+  // for any `position: fixed` descendant. Left inside the page, this button
+  // pins itself to the bottom of a five-thousand-pixel article instead of to
+  // the viewport, and is never on screen. A portal puts it outside that
+  // ancestor, where `fixed` means what it says.
+  return createPortal(
+    <button
+      className={`totop${shown ? " totop--in" : ""}`}
+      onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+      aria-hidden={!shown}
+      tabIndex={shown ? 0 : -1}
+      title="Back to the index"
+    >
+      <span aria-hidden="true">↑</span>
+      <span className="totop__label">index</span>
+    </button>,
+    document.body,
+  );
+}
+
 /* ----------------------------------------------------------------- the page */
 
 export default function HowItWorks({ status }) {
@@ -203,6 +246,7 @@ export default function HowItWorks({ status }) {
       />
 
       <Index />
+      <ToTop />
 
       {/* ------------------------------------------------ 1. ingest */}
       <section className="how" id="ingest">
