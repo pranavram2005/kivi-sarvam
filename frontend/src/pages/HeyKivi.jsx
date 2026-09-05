@@ -464,111 +464,131 @@ const SHAPES = {
  * The route a question takes, reported by the pipeline itself.
  *
  * The server narrates: each stage emits an event as it finishes, carrying the
- * values it actually computed, so a row appears because that stage completed.
- * What follows is only about how to show nine of those without burying the
- * answer they produced.
+ * values it actually computed. What follows is only about how to show nine of
+ * those without burying the answer they produced.
  *
- * Three phases, as three cards, is the whole idea. Nine steps in a list is nine
- * things to read and no shape; understand -> search -> answer is one sentence,
- * and each card can carry the single number that phase produced - who was
- * recognised, how many memories survived, how many were cited. That is enough
- * to know what happened without opening anything.
- *
- * Each card also carries its share of the wait as a fill along its bottom edge.
- * The cards are equal width on purpose: sizing them by duration would make the
- * first two slivers, since a hosted model is most of every question. The fill
- * keeps the proportion honest without making two thirds of the row unreadable.
- *
- * Clicking a card opens that phase's steps. Nothing is open by default once the
- * answer has landed, because at that point the answer is what you came for; the
- * phase that is running opens itself while you wait, because at that point it
- * is the only thing happening.
+ * It reads as a collapsed line you can open - a sentence per step, in English,
+ * with the numbers folded into the sentence. Earlier versions of this showed
+ * the same data as a table of labels and values, and it was accurate and
+ * unreadable: nobody scans nine tables to find out that a question took two
+ * seconds because a model was thinking. The measured values are all still here;
+ * they are just written as prose, with the raw facts one click further in for
+ * anyone who wants to check them.
  */
 
-/* Which stages make up each phase, and how to summarise the phase in one
-   value. The question path and the dictation path are different pipelines, so
-   each gets its own; the stage keys tell them apart. */
-const PHASES = {
-  ask: [
-    {
-      key: "read",
-      verb: "Understood",
-      label: "read the question",
-      stages: ["plan"],
-      sum: (f) => {
-        const names = f(["plan"], "names");
-        if (names && names !== "nobody Kivi knows") return names;
-        const asking = f(["plan"], "asking for");
-        return asking ? `asking ${asking}` : null;
-      },
-    },
-    {
-      key: "search",
-      verb: "Searched",
-      label: "every memory, six signals",
-      stages: ["corpus", "lexical", "embed", "score", "rank"],
-      sum: (f) => {
-        const scored = f(["score", "rank"], "scored");
-        const kept = f(["rank"], "kept");
-        if (scored !== undefined && kept !== undefined) return `${scored} → ${kept}`;
-        return scored !== undefined ? `${scored} scored` : null;
-      },
-    },
-    {
-      key: "answer",
-      verb: "Answered",
-      label: "from those, or not at all",
-      stages: ["compose", "rescue", "verify", "provenance"],
-      sum: (f) => {
-        const outcome = f(["compose"], "outcome");
-        if (outcome === "declined to answer") return "declined";
-        const cited = f(["compose"], "memories cited");
-        if (cited !== undefined) return `from ${cited} memor${cited === 1 ? "y" : "ies"}`;
-        return outcome || null;
-      },
-    },
-  ],
-  dictate: [
-    {
-      key: "store",
-      verb: "Kept",
-      label: "the words, unchanged",
-      stages: ["dictation"],
-      sum: (f) => f(["dictation"], "dictation") || null,
-    },
-    {
-      key: "decide",
-      verb: "Extracted",
-      label: "what is worth keeping",
-      stages: ["extract", "reject"],
-      sum: (f) => {
-        const n = f(["extract"], "candidates found");
-        if (n !== undefined) return `${n} candidate${n === 1 ? "" : "s"}`;
-        return f(["extract"], "verdict") || null;
-      },
-    },
-    {
-      key: "write",
-      verb: "Reconciled",
-      label: "against what is known",
-      stages: ["embed", "reconcile", "stored"],
-      sum: (f) => {
-        const verdict = f(["reconcile"], "verdict");
-        return verdict ? String(verdict).toLowerCase() : null;
-      },
-    },
-  ],
+/* The planner's intent names are identifiers, not English. */
+const ASKING = {
+  when: "when something is",
+  who: "who someone is",
+  prepare: "what to prepare",
+  discussed: "what was discussed",
+  preference: "a preference of yours",
+  draft: "something to be drafted",
+  why: "why something is the case",
+  general: "your history in general",
 };
 
-const phasesFor = (rows) =>
-  rows.some((r) => r.stage === "dictation" || r.stage === "extract")
-    ? PHASES.dictate
-    : PHASES.ask;
+/** One sentence describing what a stage did, built from what it reported. */
+function narrate(stage) {
+  const f = (key) => {
+    const found = stage.facts?.find(([k]) => k === key);
+    return found ? found[1] : undefined;
+  };
+  const list = (v) => (v === undefined || v === "" || v === "-" ? null : String(v));
+
+  switch (stage.stage) {
+    case "plan": {
+      const names = list(f("names"));
+      const asking = list(f("asking for"));
+      const must = list(f("must be mentioned"));
+      const bits = [];
+      if (names && names !== "nobody Kivi knows") bits.push(`Recognised ${names}`);
+      else bits.push("No name it already knows");
+      if (asking) bits.push(`asking ${ASKING[asking] || `about ${asking}`}`);
+      let out = bits.join(", ") + ".";
+      if (must) out += ` An answer has to mention ${must}.`;
+      if (f("time-sensitive")?.toString().startsWith("yes")) out += " Recency counts extra.";
+      return out;
+    }
+    case "corpus":
+      return `Loaded all ${f("candidates")} memories — ${f("current")} current and ${f(
+        "superseded",
+      )} that were later corrected, which are demoted rather than hidden.`;
+    case "lexical":
+      return `Built a word index over all ${f("documents indexed")} of them, ${f(
+        "distinct words",
+      )} distinct words. It is what rescues a rare name.`;
+    case "embed":
+      return `Hashed the question into a vector with ${f(
+        "buckets used",
+      )} buckets filled. No model, no download, same result on any machine.`;
+    case "score":
+      return `Scored all ${f(
+        "scored",
+      )} on six signals — meaning, wording and recency by weight, plus three structural bonuses added outright.`;
+    case "rank": {
+      const kept = f("kept");
+      const dropped = f("dropped");
+      const top = list(f("top score"));
+      return `Kept ${kept}, dropped ${dropped}${top ? `. Best score ${top}` : ""}.`;
+    }
+    case "compose": {
+      const by = list(f("answered by"));
+      const cited = f("memories cited");
+      const offered = f("memories offered");
+      const outcome = list(f("outcome"));
+      if (outcome === "declined to answer")
+        return `${by} was given ${offered} memories and declined to answer from them.`;
+      return `${by} wrote the answer from ${cited} of the ${offered} memories it was given, and cited them.`;
+    }
+    case "rescue":
+      return `Nothing supported an answer, so the raw dictations were searched too — ${f(
+        "outcome",
+      )}.`;
+    case "verify":
+      return `${list(f("reason")) || f("verdict")}.`;
+    case "provenance":
+      return `Traced ${f("memories cited")} memories back to ${f(
+        "source dictations",
+      )} dictations, so the answer arrives attached to your own words.`;
+
+    // the dictation path
+    case "dictation":
+      return `Stored ${f("length")} from ${f("application")}, exactly as said.`;
+    case "extract":
+      return `${f("verdict")} — found ${f("candidates found")} worth keeping. Decided by ${list(
+        f("decided by"),
+      )}.`;
+    case "reject":
+      return `Confidence ${f("confidence")} is below the ${f(
+        "threshold",
+      )} threshold, so it was stored as REJECTED rather than dropped.`;
+    case "reconcile": {
+      const n = f("existing memories in that slot");
+      const verdict = f("verdict");
+      const replaces = list(f("replaces"));
+      return `Compared against ${n} memory/memories about the same thing: ${verdict}${
+        replaces ? `, replacing ${replaces}` : ""
+      }.`;
+    }
+    case "stored": {
+      const parts = [];
+      if (f("learned")) parts.push(`learned ${f("learned")}`);
+      if (f("corrected an earlier memory"))
+        parts.push(`corrected ${f("corrected an earlier memory")}`);
+      if (f("already knew")) parts.push(`already knew ${f("already knew")}`);
+      if (f("not confident enough")) parts.push(`${f("not confident enough")} not trusted`);
+      return `Written down with its audit trail — ${parts.join(", ") || "nothing changed"}.`;
+    }
+    default:
+      return stage.does || "";
+  }
+}
 
 function Pipeline({ answer = null, stages = [], pending = false }) {
   const [elapsed, setElapsed] = useState(0);
-  const [open, setOpen] = useState(null); // which phase the reader opened
-  const [detail, setDetail] = useState(null); // one step's table and note
+  const [open, setOpen] = useState(false);
+  const [detail, setDetail] = useState(null);
 
   useEffect(() => {
     if (!pending) return undefined;
@@ -583,161 +603,86 @@ function Pipeline({ answer = null, stages = [], pending = false }) {
 
   const done = rows.filter((r) => !r.pending);
   const total = rows.length ? rows[rows.length - 1].at_ms : 0;
-  const slowest = done.reduce((a, b) => (b.ms > (a?.ms ?? -1) ? b : a), null);
+  const active = rows.find((r) => r.pending);
+  const shown = pending || open;
 
-  // A fact, looked up in named stages. The keys are not unique across the
-  // pipeline - "verdict" belongs to extraction, reconciliation and the support
-  // check - so every lookup says which stages it will accept.
-  const fact = (stageKeys, key) => {
-    for (const row of rows) {
-      if (row.pending || !stageKeys.includes(row.stage)) continue;
-      const found = row.facts?.find(([k]) => k === key);
-      if (found && found[1] !== undefined && found[1] !== null) return found[1];
-    }
-    return undefined;
-  };
-
-  const phases = phasesFor(rows).map((phase) => {
-    const mine = rows.filter((r) => phase.stages.includes(r.stage));
-    const busy = mine.some((r) => r.pending);
-    return {
-      ...phase,
-      steps: mine,
-      ms: mine.reduce((t, r) => t + (r.ms || 0), 0),
-      busy,
-      started: mine.length > 0,
-      headline: mine.length ? phase.sum(fact) : null,
-    };
-  });
-
-  // While it runs, the phase that is working shows its own steps - it is the
-  // only thing happening. Once it lands, nothing is open: the answer is above.
-  const active = phases.find((p) => p.running);
-  const shown = pending ? (open ?? active?.key ?? null) : open;
+  // While it runs the summary line says what is happening right now; once it
+  // lands it says what it cost, which is the only part still worth a glance.
+  const summary = pending
+    ? active
+      ? active.label
+      : done.length
+        ? done[done.length - 1].label
+        : "Working through your memory"
+    : `Worked through your memory in ${fmtMs(total)}`;
 
   return (
-    <div className={`pipe${pending ? " pipe--pending" : ""}`}>
-      <div className="pipe__head">
-        <span>{pending ? "watching it work" : "how this answer was produced"}</span>
-        <span className="pipe__total mono">
-          {pending ? `${(elapsed / 1000).toFixed(1)}s` : total ? fmtMs(total) : ""}
+    <div className={`think${shown ? " think--open" : ""}`}>
+      <button
+        className="think__line"
+        onClick={() => !pending && setOpen((v) => !v)}
+        aria-expanded={shown}
+        disabled={pending}
+      >
+        <span className="think__caret" aria-hidden="true" />
+        <span className={`think__summary${pending ? " think__summary--live" : ""}`}>
+          {summary}
         </span>
-      </div>
-
-      <div className="pf">
-        {phases.map((phase, i) => {
-          // A share of elapsed-so-far is not a share of the wait: the model
-          // has not returned yet, so 70% would become 3% a second later.
-          // Proportions appear once there is a total to be a proportion of.
-          const share = !pending && total > 0 ? phase.ms / total : 0;
-          const isOpen = shown === phase.key;
-          return (
-            <button
-              key={phase.key}
-              className={
-                "pf__card" +
-                (phase.running ? " pf__card--busy" : "") +
-                (isOpen ? " pf__card--open" : "") +
-                (!phase.started ? " pf__card--waiting" : "")
-              }
-              onClick={() => setOpen(isOpen ? null : phase.key)}
-              aria-expanded={isOpen}
-              disabled={!phase.started}
-            >
-              <span className="pf__n mono">{i + 1}</span>
-              <span className="pf__verb">{phase.running ? phase.busy : phase.verb}</span>
-              <span className="pf__headline">
-                {phase.running ? (
-                  <span className="pf__working">
-                    working<span className="pf__dots" />
-                  </span>
-                ) : (
-                  phase.headline || (phase.started ? "done" : "—")
-                )}
-              </span>
-              <span className="pf__foot mono">
-                <span>{phase.started && !phase.running ? fmtMs(phase.ms) : ""}</span>
-                <span className="pf__pct">
-                  {share > 0 ? `${Math.round(share * 100)}%` : ""}
-                </span>
-              </span>
-              <span className="pf__fill" style={{ transform: `scaleX(${share})` }} />
-            </button>
-          );
-        })}
-      </div>
-
-      {!pending && slowest && total > 0 && slowest.ms / total > 0.4 ? (
-        <p className="pf__note">
-          <b>{Math.round((slowest.ms / total) * 100)}%</b> of the wait was{" "}
-          <i>{slowest.label.toLowerCase()}</i>
-          {slowest.stage === "compose" ? " — everything Kivi does itself took the rest" : ""}
-        </p>
-      ) : null}
+        <span className="think__time mono">
+          {pending ? `${(elapsed / 1000).toFixed(1)}s` : `${done.length} steps`}
+        </span>
+      </button>
 
       {shown ? (
-        <Steps
-          steps={phases.find((p) => p.key === shown)?.steps || []}
-          detail={detail}
-          setDetail={setDetail}
-        />
+        <ol className="think__steps">
+          {rows.map((stage, i) => {
+            const id = `${stage.stage}-${i}`;
+            const isOpen = detail === id;
+            const more = stage.facts?.length || stage.table || stage.note;
+            return (
+              <li className={`tk${stage.pending ? " tk--run" : ""}`} key={id}>
+                <div className="tk__line">
+                  <span className="tk__name">{stage.label}</span>
+                  <span className="tk__ms mono">
+                    {stage.pending ? "…" : fmtMs(stage.ms)}
+                  </span>
+                </div>
+                <p className="tk__says">
+                  {stage.pending ? stage.does : narrate(stage)}
+                </p>
+
+                {!stage.pending && more ? (
+                  <button
+                    className="tk__more"
+                    onClick={() => setDetail(isOpen ? null : id)}
+                    aria-expanded={isOpen}
+                  >
+                    {isOpen ? "hide the numbers" : "show the numbers"}
+                  </button>
+                ) : null}
+
+                {isOpen ? (
+                  <div className="tk__detail">
+                    {stage.facts?.length ? (
+                      <dl className="tk__facts">
+                        {stage.facts.map(([label, value]) => (
+                          <div className="tk__fact" key={label}>
+                            <dt>{label}</dt>
+                            <dd className="mono">{String(value)}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    ) : null}
+                    {stage.table ? <StageTable table={stage.table} /> : null}
+                    {stage.note ? <p className="tk__note">{stage.note}</p> : null}
+                  </div>
+                ) : null}
+              </li>
+            );
+          })}
+        </ol>
       ) : null}
     </div>
-  );
-}
-
-/** The steps inside one phase, with their measured facts. */
-function Steps({ steps, detail, setDetail }) {
-  return (
-    <ol className="ph__steps">
-      {steps.map((stage, i) => {
-        const id = `${stage.stage}-${i}`;
-        const isOpen = detail === id;
-        const more = stage.table || stage.note;
-        return (
-          <li className={`st${stage.pending ? " st--run" : ""}`} key={id}>
-            <span className="st__dot" aria-hidden="true" />
-            <div className="st__body">
-              <div className="st__line">
-                <span className="st__name">{stage.label}</span>
-                <span className="st__ms mono">
-                  {stage.pending ? "running…" : fmtMs(stage.ms)}
-                </span>
-              </div>
-              <p className="st__does">{stage.does}</p>
-
-              {stage.facts?.length ? (
-                <dl className="st__facts">
-                  {stage.facts.map(([label, value]) => (
-                    <div className="st__fact" key={label}>
-                      <dt>{label}</dt>
-                      <dd className="mono">{String(value)}</dd>
-                    </div>
-                  ))}
-                </dl>
-              ) : null}
-
-              {more ? (
-                <button
-                  className="st__more"
-                  onClick={() => setDetail(isOpen ? null : id)}
-                  aria-expanded={isOpen}
-                >
-                  {isOpen ? "hide" : stage.table ? "show what it saw" : "why it works this way"}
-                </button>
-              ) : null}
-
-              {isOpen ? (
-                <div className="st__detail">
-                  {stage.table ? <StageTable table={stage.table} /> : null}
-                  {stage.note ? <p className="st__note">{stage.note}</p> : null}
-                </div>
-              ) : null}
-            </div>
-          </li>
-        );
-      })}
-    </ol>
   );
 }
 

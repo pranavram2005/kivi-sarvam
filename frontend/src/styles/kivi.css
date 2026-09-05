@@ -1517,278 +1517,159 @@ code {
    reported. It is deliberately not a progress bar - one request produces the
    whole answer, so the client cannot know which stage is running, and
    animating a guess would be inventing information. */
-.pipe {
-  border: 1px solid var(--edge);
-  border-radius: var(--r-md);
-  background: var(--surface-1);
-  margin-top: 13px;
+/* ------------------------------------------------------------- the trace */
+/* A line you can open, not a panel. The answer is what the reader came for;
+   this sits underneath it as an aside, in the same register as a footnote, and
+   only becomes substantial when someone asks it to. */
+.think {
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 9px;
 }
 
-.pipe--pending {
-  border-style: dashed;
-}
-
-.pipe__head {
+.think__line {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 14px 0;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.09em;
-  text-transform: lowercase;
-  color: var(--text-3);
-}
-
-.pipe__total { color: var(--green); }
-
-/* ----------------------------------------------------- the pipeline: phases */
-/* Three cards, not nine rows. Nine steps in a list is nine things to read and
-   no shape; understand -> search -> answer is one sentence, and each card
-   carries the single value that phase produced. */
-.pf {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  padding: 10px 14px 4px;
-}
-
-@media (max-width: 700px) {
-  .pf { grid-template-columns: minmax(0, 1fr); }
-}
-
-.pf__card {
-  position: relative;
-  overflow: hidden;
-  display: grid;
-  grid-template-rows: auto auto 1fr auto;
-  gap: 2px;
-  min-height: 92px;
-  padding: 11px 13px 12px;
-  border: 1px solid var(--edge-inner);
-  border-radius: var(--r-md);
-  background: var(--surface-2);
+  gap: 9px;
+  width: 100%;
+  padding: 2px 0;
+  border: 0;
+  background: none;
   text-align: left;
   cursor: pointer;
-  font-family: inherit;
   color: inherit;
-  transition:
-    border-color var(--dur-micro) var(--ease),
-    background var(--dur-micro) var(--ease);
+  font-family: inherit;
 }
 
-.pf__card:hover:not(:disabled) {
-  background: var(--surface-3);
-  border-color: var(--line-strong);
-}
+.think__line:disabled { cursor: default; }
 
-.pf__card:disabled { cursor: default; opacity: 0.45; }
-
-/* The chevron between cards, drawn on the card rather than between them so it
-   disappears with the card when the row wraps to one column. */
-.pf__card + .pf__card::before {
-  content: "";
-  position: absolute;
-  left: -6px;
-  top: 50%;
+.think__caret {
+  position: relative;
+  top: -1px;
   width: 5px;
   height: 5px;
-  margin-top: -3px;
-  border-top: 1px solid var(--edge-inner);
-  border-right: 1px solid var(--edge-inner);
-  transform: rotate(45deg);
+  flex: none;
+  border-right: 1.5px solid var(--text-3);
+  border-bottom: 1.5px solid var(--text-3);
+  transform: rotate(-45deg);
+  transition: transform var(--dur-micro) var(--ease);
 }
 
-@media (max-width: 700px) {
-  .pf__card + .pf__card::before { display: none; }
-}
+.think--open .think__caret { transform: rotate(45deg); }
 
-.pf__n {
-  font-size: 10px;
-  color: var(--text-3);
-}
-
-.pf__verb {
-  font-size: 11px;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
+.think__summary {
+  font-size: 12.5px;
   color: var(--text-2);
-  font-family: var(--font-mono);
+  min-width: 0;
 }
 
-/* The one value the phase produced. It is the reason the card exists, so it
-   gets the size. */
-.pf__headline {
-  align-self: end;
-  font-size: 19px;
-  line-height: 1.15;
-  font-weight: 500;
-  color: var(--text-0);
-  overflow-wrap: anywhere;
-  margin-top: 3px;
+.think__line:hover:not(:disabled) .think__summary { color: var(--text-0); }
+
+/* While it runs, the summary is the name of the step running right now. The
+   sweep is the only motion on screen, so it reads as "still going" rather
+   than as decoration. */
+.think__summary--live {
+  color: var(--text-1);
+  background: linear-gradient(
+    90deg,
+    var(--text-2) 0%,
+    var(--text-0) 45%,
+    var(--text-2) 90%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: think-sweep 1.9s linear infinite;
 }
 
-.pf__foot {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 7px;
+@keyframes think-sweep {
+  from { background-position: 120% 0; }
+  to { background-position: -120% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .think__summary--live {
+    animation: none;
+    -webkit-text-fill-color: var(--text-1);
+  }
+}
+
+.think__time {
+  margin-left: auto;
+  flex: none;
   font-size: 10.5px;
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
 
-.pf__pct { color: var(--text-2); }
-
-/* Each card's share of the total wait, along its bottom edge. Equal-width
-   cards keep the row readable - sizing them by duration would make the first
-   two slivers - and this keeps the proportion honest anyway. */
-.pf__fill {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 3px;
-  background: var(--green);
-  transform-origin: left;
-  transition: transform var(--dur-panel) var(--ease);
-}
-
-.pf__card--open {
-  border-color: var(--green-line);
-  background: var(--surface-3);
-}
-
-.pf__card--open .pf__headline { color: var(--green); }
-
-.pf__card--busy {
-  border-color: var(--amber);
-}
-
-.pf__card--busy .pf__verb { color: var(--amber); }
-
-.pf__working { color: var(--amber); font-size: 16px; }
-
-/* Three dots that fill in, so a card that is waiting on a model is obviously
-   waiting rather than obviously broken. */
-.pf__dots::after {
-  content: "";
-  animation: pf-dots 1.4s steps(4, end) infinite;
-}
-
-@keyframes pf-dots {
-  0% { content: ""; }
-  25% { content: "."; }
-  50% { content: ".."; }
-  75% { content: "..."; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .pf__dots::after { animation: none; content: "..."; }
-  .pf__fill { transition: none; }
-}
-
-.pf__note {
-  margin: 8px 14px 0;
-  font-size: 12px;
-  color: var(--text-2);
-}
-
-.pf__note b { color: var(--text-0); font-weight: 500; }
-.pf__note i { font-style: normal; color: var(--green); }
-
-/* ---- the steps inside one phase ----------------------------------------- */
-.ph__steps {
+/* One rule down the left, the way a quotation is set. It groups the steps
+   without drawing a box around them. */
+.think__steps {
   list-style: none;
-  margin: 10px 14px 12px;
-  padding: 11px 0 0;
-  border-top: 1px solid var(--line);
+  margin: 8px 0 2px;
+  padding: 2px 0 2px 15px;
+  border-left: 1px solid var(--edge-inner);
   display: grid;
-  gap: 1px;
+  gap: 13px;
 }
 
-.st {
-  display: grid;
-  grid-template-columns: 15px minmax(0, 1fr);
-  gap: 9px;
-  padding: 6px 0;
-  position: relative;
-}
-
-/* A hairline joining the steps within a phase, so they read as a sequence. */
-.st:not(:last-child)::before {
-  content: "";
-  position: absolute;
-  left: 6px;
-  top: 17px;
-  bottom: -2px;
-  width: 1px;
-  background: var(--edge);
-}
-
-.st__dot {
-  width: 7px;
-  height: 7px;
-  margin: 6px 0 0 2px;
-  border-radius: var(--r-pill);
-  background: var(--green-deep);
-  z-index: 1;
-}
-
-.st--run .st__dot {
-  background: var(--amber);
-  animation: st-pulse 1.1s ease-in-out infinite;
-}
-
-@keyframes st-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .st--run .st__dot { animation: none; }
-}
-
-.st__line {
+.tk__line {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
 }
 
-.st__name {
-  font-size: 13px;
+.tk__name {
+  font-size: 12.5px;
   font-weight: 500;
-  color: var(--text-0);
+  color: var(--text-1);
 }
 
-.st__ms {
-  font-size: 10.5px;
+.tk--run .tk__name { color: var(--amber); }
+
+.tk__ms {
+  font-size: 10px;
   color: var(--text-3);
   flex: none;
   font-variant-numeric: tabular-nums;
 }
 
-.st--run .st__ms { color: var(--amber); }
-
-.st__does {
-  margin: 1px 0 0;
-  font-size: 12px;
-  line-height: 1.5;
+/* The sentence is the point of this whole component: the measured values,
+   written as English rather than tabulated. */
+.tk__says {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  line-height: 1.55;
   color: var(--text-2);
-  max-width: 74ch;
+  max-width: 72ch;
 }
 
-/* Each row is its own grid with the same fixed first column, so the values
-   line up down the whole list without the labels being clipped. */
-.st__facts {
-  margin: 6px 0 0;
-  display: grid;
-  gap: 1px;
+.tk__more {
+  margin-top: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+  cursor: pointer;
 }
 
-.st__fact {
+.tk__more:hover { color: var(--green); }
+
+.tk__detail {
+  margin-top: 7px;
+  padding: 9px 11px;
+  border-radius: var(--r-sm);
+  background: var(--surface-1);
+}
+
+.tk__facts { margin: 0; display: grid; gap: 1px; }
+
+.tk__fact {
   display: grid;
   grid-template-columns: minmax(0, 150px) minmax(0, 1fr);
   gap: 12px;
@@ -1796,67 +1677,29 @@ code {
   padding: 1px 0;
 }
 
-.st__fact dt {
-  font-size: 11px;
-  color: var(--text-3);
-  overflow-wrap: anywhere;
-}
-
-.st__fact dd {
-  margin: 0;
-  font-size: 11.5px;
-  color: var(--green);
-  overflow-wrap: anywhere;
-}
+.tk__fact dt { font-size: 10.5px; color: var(--text-3); overflow-wrap: anywhere; }
+.tk__fact dd { margin: 0; font-size: 11px; color: var(--green); overflow-wrap: anywhere; }
 
 @media (max-width: 640px) {
-  .st__fact { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .tk__fact { grid-template-columns: minmax(0, 1fr); gap: 0; }
 }
 
-.st__more {
-  margin-top: 6px;
-  padding: 0;
-  border: 0;
-  background: none;
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  color: var(--text-3);
-  cursor: pointer;
-  border-bottom: 1px dotted var(--line-strong);
-}
-
-.st__more:hover { color: var(--text-0); }
-
-.st__detail {
-  margin-top: 8px;
-  padding: 10px 11px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  background: var(--stage);
-}
-
-.st__note {
-  margin: 0;
+.tk__note {
+  margin: 9px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
   font-size: 11.5px;
   line-height: 1.55;
   color: var(--text-2);
   max-width: 70ch;
 }
 
-.st__table-scroll + .st__note {
-  margin-top: 10px;
-  padding-top: 9px;
-  border-top: 1px solid var(--line);
-}
+.tk__facts + .st__table-scroll { margin-top: 9px; }
 
 /* Wide tables scroll inside their own box rather than widening the answer. */
 .st__table-scroll { overflow-x: auto; min-width: 0; }
 
-.st__table {
-  border-collapse: collapse;
-  width: 100%;
-  font-size: 11px;
-}
+.st__table { border-collapse: collapse; width: 100%; font-size: 11px; }
 
 .st__table th {
   text-align: left;
@@ -2503,8 +2346,8 @@ code {
   position: sticky;
   bottom: 0;
   z-index: 5;
-  margin-top: 18px;
-  padding: 14px 0 18px;
+  margin-top: 16px;
+  padding: 10px 0 13px;
   background: var(--stage);
 }
 
@@ -2536,10 +2379,30 @@ code {
 .ask__row {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
 }
 
 .ask__send { flex-shrink: 0; }
+
+/* The composer is one line of input, and it was sized like a hero field. These
+   trim it to the height of the controls beside it. */
+.ask__field {
+  padding: 9px 14px;
+  font-size: 13.5px;
+}
+
+.ask__app {
+  padding: 9px 12px;
+  font-size: 13px;
+  width: auto;
+}
+
+.ask .btn {
+  padding: 9px 18px;
+  font-size: 13px;
+}
+
+.ask .mode__btn { padding: 7px 13px; font-size: 12.5px; }
 
 /* A sub-heading inside a How it works section. Body face rather than display,
    so it steps down from the section title instead of competing with it. */
