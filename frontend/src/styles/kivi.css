@@ -977,8 +977,14 @@ code {
 .page--chat {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 190px);
+  /* Fill the screen so the composer is at the bottom of it, not floating in
+     the middle under a two-line conversation. */
+  min-height: calc(100vh - 96px);
 }
+
+/* The conversation takes the slack, so the composer is pushed to the bottom
+   when there is little to show and stays pinned there once there is more. */
+.page--chat .chat { flex: 1 1 auto; }
 
 /* ======================= Screen 3 — What Kivi Knows ===================== */
 .knowledge {
@@ -2029,22 +2035,51 @@ code {
 }
 
 /* ------------------------------------------------------ how it works: index */
-/* Buttons, not anchors: this app routes on the URL hash, so a real fragment
-   link would navigate instead of scrolling. */
+/* Content left, index right, and the index stays put while the content moves.
+   The rail is narrow on purpose - it is a place-marker, not a second reading
+   column. */
+.howx {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 208px;
+  gap: 44px;
+  align-items: start;
+}
+
+.howx__main { min-width: 0; }
+
+@media (max-width: 1080px) {
+  .howx {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  /* Back above the content, where it was, rather than squeezed beside it. */
+  .howx .ix {
+    position: static;
+    order: -1;
+    margin: 0 0 26px;
+    padding: 13px 16px 15px;
+    border: 1px solid var(--edge);
+    border-radius: var(--r-lg);
+    background: var(--surface-1);
+  }
+  .howx .ix__list { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 2px 18px; }
+  .howx .ix__link { border-left: 0; padding-left: 0; }
+  .howx .ix__link--here { border-left: 0; }
+}
+
 .ix {
-  margin: 0 0 12px;
-  padding: 13px 16px 15px;
-  border: 1px solid var(--edge);
-  border-radius: var(--r-lg);
-  background: var(--surface-1);
+  position: sticky;
+  top: 24px;
+  padding: 2px 0 0;
 }
 
 .ix__head {
-  font-size: 11px;
+  font-size: 10.5px;
   letter-spacing: 0.09em;
   text-transform: lowercase;
   color: var(--text-3);
-  margin-bottom: 9px;
+  margin-bottom: 10px;
+  padding-left: 11px;
 }
 
 .ix__list {
@@ -2052,45 +2087,45 @@ code {
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-  gap: 2px 18px;
+  gap: 1px;
 }
 
 .ix__link {
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr);
+  grid-template-columns: 15px minmax(0, 1fr);
   gap: 8px;
   align-items: baseline;
   width: 100%;
-  padding: 4px 0;
+  padding: 6px 0 6px 10px;
   border: 0;
+  border-left: 1px solid var(--edge);
   background: none;
   text-align: left;
   cursor: pointer;
-  color: var(--text-1);
+  color: var(--text-2);
   font-family: inherit;
-  font-size: 13px;
-  border-radius: var(--r-sm);
-  transition: color var(--dur-micro) var(--ease);
+  font-size: 12.5px;
+  line-height: 1.35;
+  transition:
+    color var(--dur-micro) var(--ease),
+    border-color var(--dur-micro) var(--ease);
 }
 
 .ix__link:hover { color: var(--text-0); }
-.ix__link:hover .ix__title { border-bottom-color: var(--line-strong); }
+.ix__link:hover { border-left-color: var(--line-strong); }
 
-.ix__n {
-  font-size: 11px;
-  color: var(--text-3);
+/* Where you are now. The rule on the left carries it, so nothing moves as the
+   marker travels down the list. */
+.ix__link--here {
+  color: var(--text-0);
+  border-left-color: var(--green);
 }
 
-.ix__link:hover .ix__n { color: var(--green); }
-
-.ix__title {
-  border-bottom: 1px solid transparent;
-  padding-bottom: 1px;
-}
+.ix__n { color: var(--text-3); font-size: 10.5px; }
+.ix__link--here .ix__n { color: var(--green); }
 
 /* The anchor lands above the heading rather than flush against the viewport. */
-.how[id] { scroll-margin-top: 20px; }
+.how[id] { scroll-margin-top: 24px; }
 
 /* ------------------------------------- how it works: the techniques table */
 /* Three columns on a wide screen, stacked on a narrow one. It is a table of

@@ -156,16 +156,41 @@ function SignalTable() {
  */
 const SECTIONS = [
   ["ingest", "1", "A dictation becomes memory"],
-  ["example", "2", "One real dictation, followed through"],
-  ["reconcile", "3", "Deciding whether Kivi already knew it"],
+  ["example", "2", "A real example, step by step"],
+  ["reconcile", "3", "New, a repeat, or a correction?"],
   ["query", "4", "A question becomes an answer"],
   ["storage", "5", "What is actually stored"],
-  ["algorithms", "6", "The algorithms, and why these ones"],
+  ["algorithms", "6", "The algorithms"],
   ["vectordb", "7", "Would a vector database help?"],
-  ["advanced", "8", "Techniques not used, and why"],
+  ["advanced", "8", "What was left out, and why"],
 ];
 
 function Index() {
+  const [here, setHere] = useState(SECTIONS[0][0]);
+
+  // Which section is being read: whichever heading last crossed the top
+  // quarter of the viewport. An IntersectionObserver on the sections gets this
+  // wrong on a page where one section is taller than the screen - it reports
+  // the tall one leaving before the next arrives, and the marker jumps back.
+  useEffect(() => {
+    const onScroll = () => {
+      const line = window.innerHeight * 0.25;
+      let current = SECTIONS[0][0];
+      for (const [id] of SECTIONS) {
+        const el = document.getElementById(id);
+        if (el && el.getBoundingClientRect().top <= line) current = id;
+      }
+      setHere(current);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, []);
+
   const go = (id) => {
     const target = document.getElementById(id);
     if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -177,7 +202,11 @@ function Index() {
       <ol className="ix__list">
         {SECTIONS.map(([id, n, title]) => (
           <li key={id}>
-            <button className="ix__link" onClick={() => go(id)}>
+            <button
+              className={`ix__link${here === id ? " ix__link--here" : ""}`}
+              onClick={() => go(id)}
+              aria-current={here === id ? "true" : undefined}
+            >
               <span className="ix__n mono">{n}</span>
               <span className="ix__title">{title}</span>
             </button>
@@ -401,11 +430,15 @@ export default function HowItWorks({ status }) {
       <PageHead
         eyebrow="screen 5 · how it works"
         title="What happens between speaking and being answered"
-        lede="The same system from several angles: what happens to a dictation, how Kivi decides whether it already knew something, what a question goes through, what is actually stored, the algorithms underneath it, and the ones that were considered and left out."
+        lede="How a dictation becomes memory, how a question finds it again, and why it is built this way — with one real record from the loaded corpus followed all the way through."
       />
 
-      <Index />
       <ToTop />
+
+      {/* Content left, index right. The index is sticky, so it stays put while
+          the reading column moves under it and can show where you are. */}
+      <div className="howx">
+        <div className="howx__main">
 
       {/* ------------------------------------------------ 1. ingest */}
       <section className="how" id="ingest">
@@ -447,7 +480,7 @@ export default function HowItWorks({ status }) {
 
       {/* ------------------------------------------- 2. the worked example */}
       <section className="how" id="example">
-        <h2 className="how__h">2 &middot; One real dictation, followed through</h2>
+        <h2 className="how__h">2 &middot; A real example, step by step</h2>
         <p className="how__p">
           The diagram above is the shape. This is one actual record from the loaded corpus,
           read live, from the words a recogniser produced to the vector the memory is now
@@ -458,7 +491,7 @@ export default function HowItWorks({ status }) {
 
       {/* ------------------------------------------------ 3. reconciliation */}
       <section className="how" id="reconcile">
-        <h2 className="how__h">3 · Deciding whether Kivi already knew it</h2>
+        <h2 className="how__h">3 · New, a repeat, or a correction?</h2>
         <p className="how__p">
           Kivi first looks up what it already believes about the same subject and attribute
           &mdash; <em>the Atlas review&rsquo;s time</em> &mdash; then decides which of four things
@@ -580,7 +613,7 @@ export default function HowItWorks({ status }) {
 
       {/* ------------------------------------------------ 5. the algorithms */}
       <section className="how" id="algorithms">
-        <h2 className="how__h">6 &middot; The algorithms, and why these ones</h2>
+        <h2 className="how__h">6 &middot; The algorithms</h2>
         <p className="how__p">
           Three pieces do the work: turning text into something comparable, deciding which
           memories a question is about, and deciding whether to answer at all.
@@ -885,9 +918,9 @@ export default function HowItWorks({ status }) {
 
       {/* --------------------------------------- 7. the advanced techniques */}
       <section className="how" id="advanced">
-        <h2 className="how__h">8 &middot; Techniques not used, and why</h2>
+        <h2 className="how__h">8 &middot; What was left out, and why</h2>
         <p className="how__p">
-          Fusion, reranking, learned embeddings, query rewriting, graph memory. Leaving them out
+          Fusion, reranking, learned embeddings, better entity handling. Leaving them out
           is a decision, and a decision is only defensible if you can say what it cost. Each was
           measured against this system. Two would help.
         </p>
@@ -948,22 +981,6 @@ export default function HowItWorks({ status }) {
 
           <div className="adv__row">
             <span className="adv__name">
-              Hypothetical document embeddings
-              <em>search with an invented answer, not the question</em>
-            </span>
-            <span className="adv__what">
-              A question and its answer are written differently. So have the model draft the answer 
-              it expects, embed <em>that</em>, and search with it.
-            </span>
-            <span className="adv__verdict adv__verdict--maybe">
-              <b>Attacks the same gap without a download.</b> But it needs a model on the question 
-              path, so it cannot run offline, and adds a round-trip to a question that already 
-              spends 98% of its time waiting for one.
-            </span>
-          </div>
-
-          <div className="adv__row">
-            <span className="adv__name">
               Entity resolution
               <em>knowing that Priya, Priya S. and she are one person</em>
             </span>
@@ -978,22 +995,7 @@ export default function HowItWorks({ status }) {
             </span>
           </div>
 
-          <div className="adv__row">
-            <span className="adv__name">
-              Graph memory
-              <em>entities and relations, not just documents</em>
-            </span>
-            <span className="adv__what">
-              Memories as a graph of entities joined by typed, time-stamped edges, so a question can 
-              be answered by traversal rather than by similarity.
-            </span>
-            <span className="adv__verdict adv__verdict--maybe">
-              <b>Half-built already, and the natural direction.</b> Memories are linked by 
-              supersession and contradiction, and each carries when it happened and when it was 
-              learned. What is missing is traversal at query time.
-            </span>
           </div>
-        </div>
 
         <h3 className="how__h3">What that adds up to</h3>
         <p className="how__p">
@@ -1075,8 +1077,10 @@ export default function HowItWorks({ status }) {
           failures first, <code>python evaluation/run_eval.py</code>.
         </p>
       </section>
+        </div>
 
-
+        <Index />
+      </div>
     </div>
   );
 }

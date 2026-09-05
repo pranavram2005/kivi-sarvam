@@ -162,6 +162,10 @@ export const api = {
     request("/memory/process", { method: "POST", body: JSON.stringify(payload) }),
 
   // ---- hey kivi --------------------------------------------------------
+  // What to ask next, grounded in the memories the last answer actually used.
+  followUps: (queryId, limit = 3) =>
+    request(`/hey-kivi/follow-ups${qs({ query_id: queryId, limit })}`),
+
   ask: (question, topK) =>
     request("/hey-kivi/query", {
       method: "POST",

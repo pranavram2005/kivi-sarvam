@@ -370,6 +370,17 @@
   padding-inline: 26px;
 }
 
+/* "next" ahead of the follow-up chips, so they read as being about the answer
+   just given rather than as a fresh set of starters. */
+.suggestions__label {
+  align-self: center;
+  font-size: 10.5px;
+  letter-spacing: 0.09em;
+  text-transform: lowercase;
+  color: var(--green);
+  padding-right: 2px;
+}
+
 .suggestions {
   display: flex;
   gap: 8px;

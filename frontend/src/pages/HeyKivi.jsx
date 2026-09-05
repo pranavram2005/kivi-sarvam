@@ -42,6 +42,11 @@ export default function HeyKivi({ onRefresh }) {
   const [earlier, setEarlier] = useState(null); // null = not checked yet
   const [loadingEarlier, setLoadingEarlier] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
+  // Once a question has been answered, the useful next question is about what
+  // that answer touched - not about the corpus at large. The server builds
+  // these from the memories the answer actually cited, and only offers ones it
+  // holds a memory for, so a suggestion never leads to a refusal.
+  const [followUps, setFollowUps] = useState([]);
   const [stats, setStats] = useState(null);
   // The stages the server has reported for the question in flight. A stage
   // arrives when it finishes; the three that call a model announce themselves
@@ -135,6 +140,12 @@ export default function HeyKivi({ onRefresh }) {
         { role: "kivi", answer, stages: trace.filter((e) => !e.pending) },
       ]);
       api.queryAnalytics().then(setStats).catch(() => {});
+      if (answer.query_id) {
+        api
+          .followUps(answer.query_id)
+          .then((next) => setFollowUps(next || []))
+          .catch(() => setFollowUps([]));
+      }
     } catch (err) {
       setError(err);
       setTurns((prev) => prev.slice(0, -1));
@@ -186,6 +197,7 @@ export default function HeyKivi({ onRefresh }) {
         ...prev,
         { role: "learned", transcript: created, stages: trace.filter((e) => !e.pending) },
       ]);
+      setFollowUps([]);
       onRefresh?.();
     } catch (err) {
       setError(err);
@@ -360,9 +372,12 @@ export default function HeyKivi({ onRefresh }) {
           </button>
         </form>
 
-        {started && !dictateMode && suggestions.length ? (
+        {started && !dictateMode && (followUps.length || suggestions.length) ? (
           <div className="suggestions">
-            {suggestions.slice(0, 4).map((s) => (
+            {followUps.length ? (
+              <span className="suggestions__label mono">next</span>
+            ) : null}
+            {(followUps.length ? followUps : suggestions.slice(0, 4)).map((s) => (
               <button key={s} className="suggestion" onClick={() => ask(s)} disabled={asking}>
                 {s}
               </button>

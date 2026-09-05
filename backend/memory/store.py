@@ -737,6 +737,50 @@ def log_query(
     return query_id
 
 
+def memories_about(
+    user_id: str, subject: str, conn: sqlite3.Connection | None = None
+) -> list[dict[str, Any]]:
+    """Current memories whose subject or entity list names `subject`.
+
+    Ordered by confidence, so a caller looking for one representative memory
+    about a person gets the one Kivi is surest of. Entities are stored as JSON,
+    so the LIKE is a pre-filter and the exact check happens in Python - a
+    substring match on JSON would let "Priya" match "Priyanka".
+    """
+    connection = conn or get_connection()
+    rows = connection.execute(
+        """SELECT * FROM memories
+           WHERE user_id = ? AND status = ?
+             AND (subject = ? OR entities LIKE ?)
+           ORDER BY confidence DESC, id DESC
+           LIMIT 40""",
+        (user_id, ACTIVE, subject, f'%"{subject}"%'),
+    ).fetchall()
+    key = subject.strip().lower()
+    return [
+        m
+        for m in rows_to_dicts(rows)
+        if (m.get("subject") or "").strip().lower() == key
+        or any((e or "").strip().lower() == key for e in (m.get("entities") or []))
+    ]
+
+
+def was_corrected(memory_id: int, conn: sqlite3.Connection | None = None) -> bool:
+    """Whether this memory replaced an earlier belief, or was itself replaced.
+
+    Either direction means there is a real "before" to ask about.
+    """
+    connection = conn or get_connection()
+    row = connection.execute(
+        """SELECT 1 FROM memories
+           WHERE superseded_by_id = ?
+              OR (id = ? AND superseded_by_id IS NOT NULL)
+           LIMIT 1""",
+        (memory_id, memory_id),
+    ).fetchone()
+    return row is not None
+
+
 def get_query_log(query_id: int, conn: sqlite3.Connection | None = None) -> dict[str, Any] | None:
     row = _conn(conn).execute("SELECT * FROM query_logs WHERE id = ?", (query_id,)).fetchone()
     return row_to_dict(row)

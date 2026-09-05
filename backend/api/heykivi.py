@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Query
 from backend.config import get_settings
 from backend.memory import store
 from backend.memory.heykivi import ask
+from backend.memory.text import normalise
 from backend.models.schemas import QueryRequest, QueryResponse
 
 router = APIRouter(prefix="/api/hey-kivi", tags=["hey-kivi"])
@@ -88,6 +89,97 @@ def query_detail(query_id: int) -> dict[str, Any]:
     log["used"] = [expand(i) for i in used_ids]
     log["retrieved"] = [expand(i) for i in retrieved_ids]
     return log
+
+
+# What each kind of memory makes it sensible to ask next. Keyed on the memory
+# that would answer it, so a suggestion is never offered unless something in
+# the store can actually answer it.
+_FOLLOW_UP_TEMPLATES: dict[str, str] = {
+    "event": "When is my {noun} with {subject}?",
+    "task": "What do I owe {subject}?",
+    "fact": "What do I know about {subject}?",
+    "episode": "What was I discussing with {subject}?",
+    "preference": "How do I prefer {attribute}?",
+}
+
+
+@router.get("/follow-ups", response_model=list[str])
+def follow_ups(query_id: int = Query(...), limit: int = Query(default=3, ge=1, le=6)) -> list[str]:
+    """What to ask next, grounded in the answer that was just given.
+
+    The starter questions on an empty screen come from the whole store. Once a
+    question has been answered that is the wrong source: the useful next
+    question is about what this answer touched, not about the corpus at large.
+
+    So this walks the memories the answer actually cited, takes the people and
+    projects in them, and offers a question for each - built from a *different*
+    memory about that subject, so the suggestion leads somewhere new rather than
+    re-asking what was just answered. A suggestion is only offered when a memory
+    exists that would answer it; nothing here proposes a question Kivi would
+    have to refuse.
+    """
+    settings = get_settings()
+    user_id = settings.default_user_id
+
+    log = store.get_query_log(query_id)
+    if log is None:
+        return []
+
+    asked = normalise(log.get("question") or "")
+    seeds: list[str] = []
+    for memory in store.get_memories(log.get("used_memory_ids") or []):
+        subject = (memory.get("subject") or "").strip()
+        if subject and subject.lower() != "user" and subject not in seeds:
+            seeds.append(subject)
+        for entity in memory.get("entities") or []:
+            entity = entity.strip()
+            if entity and entity not in seeds:
+                seeds.append(entity)
+
+    out: list[str] = []
+    for subject in seeds:
+        # Another memory about the same subject - not the one just used, so the
+        # suggestion opens something rather than repeating it.
+        others = [
+            m
+            for m in store.memories_about(user_id=user_id, subject=subject)
+            if m["id"] not in (log.get("used_memory_ids") or [])
+        ]
+        for memory in others:
+            template = _FOLLOW_UP_TEMPLATES.get(memory.get("type") or "")
+            if not template:
+                continue
+            question = template.format(
+                subject=subject,
+                noun=_noun_for(memory),
+                attribute=(memory.get("attribute") or "things").replace("_", " "),
+            )
+            # Never suggest what was just asked, and never the same twice.
+            if normalise(question) == asked or question in out:
+                continue
+            out.append(question)
+            break
+        if len(out) >= limit:
+            break
+
+    # A superseded memory in the chain means there is a real "before" to ask about.
+    if len(out) < limit:
+        for memory in store.get_memories(log.get("used_memory_ids") or []):
+            if store.was_corrected(memory["id"]):
+                question = f"What did I say about {memory.get('subject') or 'this'} before?"
+                if question not in out:
+                    out.append(question)
+                break
+
+    return out[:limit]
+
+
+def _noun_for(memory: dict[str, Any]) -> str:
+    """The word to call an event in a question - taken from the memory itself."""
+    for word in ("standup", "review", "sync", "demo", "walkthrough", "sign-off", "call"):
+        if word in (memory.get("content") or "").lower():
+            return word
+    return "meeting"
 
 
 @router.get("/suggestions", response_model=list[str])
