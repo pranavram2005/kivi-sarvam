@@ -1,5 +1,5 @@
 /**
- * How the system works, in seven diagrams.
+ * How the system works, in seven sections and ten diagrams.
  *
  * This screen exists because the assignment asks that "an engineer can inspect
  * why memory did or did not affect a result", and a reader who has just opened
@@ -146,6 +146,46 @@ function SignalTable() {
   );
 }
 
+/**
+ * A short index, so a reader can go straight to the part they came for.
+ *
+ * Buttons rather than anchors on purpose: this app routes on the URL hash
+ * (`#/kivi`, `#/how`), so an `href="#algorithms"` would not scroll anywhere -
+ * it would fire a hashchange and navigate to a screen that does not exist.
+ */
+const SECTIONS = [
+  ["ingest", "1", "A dictation becomes memory"],
+  ["reconcile", "2", "Deciding whether Kivi already knew it"],
+  ["query", "3", "A question becomes an answer"],
+  ["storage", "4", "What is actually stored"],
+  ["algorithms", "5", "The algorithms, and why these ones"],
+  ["vectordb", "6", "Would a vector database help?"],
+  ["advanced", "7", "Techniques not used, and why"],
+];
+
+function Index() {
+  const go = (id) => {
+    const target = document.getElementById(id);
+    if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  return (
+    <nav className="ix" aria-label="Sections on this page">
+      <div className="ix__head mono">on this page</div>
+      <ol className="ix__list">
+        {SECTIONS.map(([id, n, title]) => (
+          <li key={id}>
+            <button className="ix__link" onClick={() => go(id)}>
+              <span className="ix__n mono">{n}</span>
+              <span className="ix__title">{title}</span>
+            </button>
+          </li>
+        ))}
+      </ol>
+    </nav>
+  );
+}
+
 /* ----------------------------------------------------------------- the page */
 
 export default function HowItWorks({ status }) {
@@ -159,11 +199,13 @@ export default function HowItWorks({ status }) {
       <PageHead
         eyebrow="screen 5 · how it works"
         title="What happens between speaking and being answered"
-        lede="The same system from several angles: what happens to a dictation, how Kivi decides whether it already knew something, what a question goes through, what is actually stored, and the algorithms underneath it."
+        lede="The same system from several angles: what happens to a dictation, how Kivi decides whether it already knew something, what a question goes through, what is actually stored, the algorithms underneath it, and the ones that were considered and left out."
       />
 
+      <Index />
+
       {/* ------------------------------------------------ 1. ingest */}
-      <section className="how">
+      <section className="how" id="ingest">
         <h2 className="how__h">1 · A dictation becomes memory</h2>
         <p className="how__p">
           Every dictation is stored first, exactly as it was said, and nothing that happens
@@ -202,7 +244,7 @@ export default function HowItWorks({ status }) {
       </section>
 
       {/* ------------------------------------------------ 2. reconciliation */}
-      <section className="how">
+      <section className="how" id="reconcile">
         <h2 className="how__h">2 · Deciding whether Kivi already knew it</h2>
         <p className="how__p">
           A new memory is never written blindly. Kivi first looks for what it already believes
@@ -250,7 +292,7 @@ export default function HowItWorks({ status }) {
       </section>
 
       {/* ------------------------------------------------ 3. query */}
-      <section className="how">
+      <section className="how" id="query">
         <h2 className="how__h">3 · A question becomes an answer</h2>
         <p className="how__p">
           Retrieval narrows five hundred dictations to a handful of memories. The step that
@@ -284,7 +326,7 @@ export default function HowItWorks({ status }) {
       </section>
 
       {/* ------------------------------------------------ 4. data model */}
-      <section className="how">
+      <section className="how" id="storage">
         <h2 className="how__h">4 · What is actually stored</h2>
         <p className="how__p">
           Four tables carry the whole system. The arrows are the reason any answer can be traced
@@ -325,7 +367,7 @@ export default function HowItWorks({ status }) {
       </section>
 
       {/* ------------------------------------------------ 5. the algorithms */}
-      <section className="how">
+      <section className="how" id="algorithms">
         <h2 className="how__h">5 &middot; The algorithms, and why these ones</h2>
         <p className="how__p">
           Three pieces do the work: turning text into something comparable, deciding which
@@ -539,7 +581,7 @@ export default function HowItWorks({ status }) {
       </section>
 
       {/* --------------------------------- 6. would a vector database help? */}
-      <section className="how">
+      <section className="how" id="vectordb">
         <h2 className="how__h">6 &middot; Would a vector database help?</h2>
         <p className="how__p">
           It is the first question anyone asks about a retrieval system, so it is worth
@@ -644,6 +686,227 @@ export default function HowItWorks({ status }) {
             </ul>
           </div>
         </div>
+      </section>
+
+
+      {/* --------------------------------------- 7. the advanced techniques */}
+      <section className="how" id="advanced">
+        <h2 className="how__h">7 &middot; Techniques not used, and why</h2>
+        <p className="how__p">
+          Retrieval has a well-known toolbox above what is built here &mdash; fusion,
+          reranking, learned embeddings, query rewriting, graph memory. Leaving them out is
+          a decision, and a decision is only defensible if you can say what it cost. Each of
+          these was measured against this system rather than judged in the abstract, and two
+          of them would help.
+        </p>
+
+        <div className="adv">
+          <div className="adv__row adv__row--head">
+            <span>Technique</span>
+            <span>What it is for</span>
+            <span>Here</span>
+          </div>
+
+          <div className="adv__row">
+            <span className="adv__name">
+              Reciprocal Rank Fusion
+              <em>combine rankings by position, not score</em>
+            </span>
+            <span className="adv__what">
+              Merging retrievers whose scores are on scales that cannot be compared &mdash;
+              a cosine of 0.42 against a BM25 of 11.7. RRF ignores the numbers and uses only
+              the rank each retriever gave.
+            </span>
+            <span className="adv__verdict adv__verdict--no">
+              <b>Solves a problem this code does not have.</b> Both signals are already
+              divided by the best score in the same question, so they arrive on a common
+              0&ndash;1 scale. RRF would earn its place the moment a third retriever with an
+              incomparable score is added &mdash; not before.
+            </span>
+          </div>
+
+          <div className="adv__row">
+            <span className="adv__name">
+              Cross-encoder reranking
+              <em>re-score the shortlist, question and memory read together</em>
+            </span>
+            <span className="adv__what">
+              A first pass retrieves generously; a slower model then reads each candidate
+              beside the question and reorders. It is the standard way to buy precision at
+              the top of a list.
+            </span>
+            <span className="adv__verdict adv__verdict--no">
+              <b>Nothing here for it to fix.</b> Reranking can only reorder what was
+              retrieved, and the right memory is in the retrieved set 96.4% of the time. In
+              the one evaluation case that misses a memory, the expected dictation was never
+              retrieved at all &mdash; a reranker would have reordered the same wrong eight.
+              No failure in the suite is a case of the right memory being retrieved and then
+              ranked below the cut.
+            </span>
+          </div>
+
+          <div className="adv__row">
+            <span className="adv__name">
+              Learned sentence embeddings
+              <em>a trained model instead of hashed n-grams</em>
+            </span>
+            <span className="adv__what">
+              Maps sentences into a space where <em>the deadline slipped</em> and
+              <em> we are running late on delivery</em> land near each other despite sharing
+              no words. The gap hashing cannot close.
+            </span>
+            <span className="adv__verdict adv__verdict--yes">
+              <b>The one that would move the number.</b> Both failures are paraphrases with
+              no shared vocabulary &mdash; exactly what this fixes. The cost is a model
+              download, which is the whole reason it is not here: today the repository clones
+              and indexes five hundred dictations offline, fetching nothing.
+            </span>
+          </div>
+
+          <div className="adv__row">
+            <span className="adv__name">
+              Hypothetical document embeddings
+              <em>search with an invented answer, not the question</em>
+            </span>
+            <span className="adv__what">
+              A question and its answer are written differently, which is half of why
+              similarity misses. So have the model draft the answer it expects, embed
+              <em> that</em>, and search with it &mdash; matching a statement against
+              statements.
+            </span>
+            <span className="adv__verdict adv__verdict--maybe">
+              <b>Attacks the same gap without a download.</b> The catch is that it needs a
+              model on the question path, so it cannot run offline, and it adds a whole
+              round-trip to a question that already spends 98% of its time waiting for one.
+            </span>
+          </div>
+
+          <div className="adv__row">
+            <span className="adv__name">
+              Entity resolution
+              <em>knowing that Priya, Priya S. and she are one person</em>
+            </span>
+            <span className="adv__what">
+              Proper handling of aliases, nicknames, initials and pronouns, so a name in a
+              question reaches every memory about that person rather than the ones that spell
+              it the same way.
+            </span>
+            <span className="adv__verdict adv__verdict--yes">
+              <b>Largest signal, crudest implementation.</b> Naming someone is worth up to
+              +0.40 &mdash; among the biggest contributions in the measured table above
+              &mdash; and it is decided by capitalisation and a substring match. Two
+              colleagues sharing a first name merge; a nickname finds nothing.
+            </span>
+          </div>
+
+          <div className="adv__row">
+            <span className="adv__name">
+              Graph memory
+              <em>entities and relations, not just documents</em>
+            </span>
+            <span className="adv__what">
+              Store memories as a graph of entities joined by typed, time-stamped edges, so a
+              question can be answered by traversal &mdash; who reports to whom, what changed
+              when &mdash; rather than by similarity alone.
+            </span>
+            <span className="adv__verdict adv__verdict--maybe">
+              <b>Half-built already, and the natural direction.</b> Memories are linked by
+              supersession and by contradiction, and every one carries both when it happened
+              and when it was learned. What is missing is traversal at query time: nothing
+              currently walks those edges to answer.
+            </span>
+          </div>
+        </div>
+
+        <h3 className="how__h3">What that adds up to</h3>
+        <p className="how__p">
+          The two rejections are rejected by the same measurement, and it is worth being exact
+          about it. Fifty of fifty-two cases pass. Neither failure is an ordering failure:
+        </p>
+
+        <p className="how__p">
+          <b>&ldquo;How do I prefer my meeting summaries?&rdquo;</b> Kivi answers with two
+          true preferences about summaries and misses the one the case asks for. The dictation
+          holding it was <em>never retrieved</em> &mdash; not retrieved and ranked low,
+          absent from the eight. Reranking those eight could not have reached it. An embedding
+          that put <em>bullet points</em> near <em>how do I prefer my summaries</em> could.
+        </p>
+
+        <p className="how__p">
+          <b>&ldquo;When is the Atlas pricing sign-off with Sarah?&rdquo;</b> Two live times
+          exist and Kivi confidently gives one. This is not a retrieval failure at all: both
+          were stored, and the conflict was never <em>detected</em>, because reconciliation
+          groups candidates by shared words and the two dictations phrase the same appointment
+          differently. The same weakness as the first &mdash; words standing in for meaning
+          &mdash; but at write time rather than at query time.
+        </p>
+
+        <p className="how__p">
+          So one failure is a query-side embedding problem and the other is a write-side one.
+          Fusion and reranking address neither. That is the whole argument for spending the
+          effort on what things mean rather than on how candidates are ordered.
+        </p>
+
+        <Figure
+          caption="Reranking works on the band where the right memory was retrieved. Neither failure is in that band."
+          viewBox="0 0 760 168"
+          height={168}
+        >
+          <text x={8} y={14} className="dg__s dg__s--left">
+            52 EVALUATION CASES
+          </text>
+          <rect x={8} y={24} width={694} height={22} rx={3} className="dg__fill-good" />
+          <rect x={706} y={24} width={26} height={22} rx={3} className="dg__fill-warn" />
+          <text x={8} y={62} className="dg__l dg__l--left">
+            50 pass &mdash; and everything a reranker could improve is already inside this
+          </text>
+          <text x={700} y={62} className="dg__l dg__l--left">2 fail</text>
+
+          <text x={8} y={100} className="dg__s dg__s--left">WHAT THOSE TWO ACTUALLY ARE</text>
+          <Box
+            x={8}
+            y={112}
+            w={230}
+            h={44}
+            title="Never retrieved"
+            sub="query-side: no shared words"
+            tone="warn"
+          />
+          <Box
+            x={250}
+            y={112}
+            w={230}
+            h={44}
+            title="Conflict never detected"
+            sub="write-side: no shared words"
+            tone="warn"
+          />
+          <Box
+            x={492}
+            y={112}
+            w={260}
+            h={44}
+            title="Retrieved, then ranked too low"
+            sub="what reranking fixes — 0 cases"
+            tone="muted"
+          />
+        </Figure>
+
+        <p className="how__p">
+          So the order of work is not the order the literature is usually read in. First
+          entity resolution, because it is the largest signal and the weakest code and it needs
+          no model at all. Then learned embeddings, accepting the download, because that is the
+          only thing that reaches the failures. Reranking and fusion come after that &mdash; not
+          because they are bad, but because on this corpus there is nothing left for them to
+          fix.
+        </p>
+
+        <p className="how__p how__p--last">
+          And none of it should be shipped on an argument. The way to know is the evaluation
+          already in this repository: 52 cases, failures shown first, run with{" "}
+          <code>python evaluation/run_eval.py</code>. Any of these is worth taking only if that
+          number moves.
+        </p>
       </section>
 
 

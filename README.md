@@ -537,6 +537,7 @@ it belongs.
 | **Hey Kivi** | The product. Question in, grounded answer out, memories used printed underneath. Each stage of the pipeline reports itself *while the question runs*, carrying what it actually computed; "Show working" reveals the full retrieval ranking. The composer also has a **Dictate** mode: speak into the same box and Kivi replies with what it decided to remember — or that it decided to remember nothing, and why. |
 | **What Kivi Knows** | Current understanding grouped by people, projects, coming up, commitments and preferences — plus an archive of everything replaced or forgotten. |
 | **Inspector** | For reviewers. The evaluation run with failures shown first, corpus statistics, the query log, and full provenance traces. |
+| **How it works** | The shape of the machine, in seven sections and ten diagrams: what happens to a dictation, how a correction is decided, what a question goes through, what is stored, the algorithms and why these ones, whether a vector database would help, and the techniques that were considered and left out — each with the measurement that decided it. |
 
 **The pipeline narrates itself.** `POST /api/stream/ask` and
 `POST /api/stream/dictate` run the ordinary pipeline and emit a server-sent
@@ -697,8 +698,11 @@ Left in deliberately, and reproducible.
 
 **`eval_008` — "How do I prefer my meeting summaries?"** Kivi returns two true
 preferences about summaries, but not the specific "bullet points" one the case
-asks for. A ranking failure among several equally true, non-contradictory
-preferences. Nothing wrong is said; the most relevant thing is not said.
+asks for. Nothing wrong is said; the most relevant thing is not said. Worth
+being precise about the cause, because it decides what would fix it: the run
+records `expected_source_retrieved: false`, so the dictation holding the answer
+never entered the ranked eight at all. It is a recall failure, not an ordering
+one — reranking the eight could not have reached it.
 
 **`eval_402` — "When is the Atlas pricing sign-off with Sarah?"** Two live times
 exist and Kivi answers with one instead of flagging the disagreement. The two

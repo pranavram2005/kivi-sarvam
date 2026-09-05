@@ -1788,6 +1788,159 @@ code {
   color: var(--green);
 }
 
+/* ------------------------------------------------------ how it works: index */
+/* Buttons, not anchors: this app routes on the URL hash, so a real fragment
+   link would navigate instead of scrolling. */
+.ix {
+  margin: 0 0 12px;
+  padding: 13px 16px 15px;
+  border: 1px solid var(--edge);
+  border-radius: var(--r-lg);
+  background: var(--surface-1);
+}
+
+.ix__head {
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: lowercase;
+  color: var(--text-3);
+  margin-bottom: 9px;
+}
+
+.ix__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 2px 18px;
+}
+
+.ix__link {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+  width: 100%;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text-1);
+  font-family: inherit;
+  font-size: 13px;
+  border-radius: var(--r-sm);
+  transition: color var(--dur-micro) var(--ease);
+}
+
+.ix__link:hover { color: var(--text-0); }
+.ix__link:hover .ix__title { border-bottom-color: var(--line-strong); }
+
+.ix__n {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.ix__link:hover .ix__n { color: var(--green); }
+
+.ix__title {
+  border-bottom: 1px solid transparent;
+  padding-bottom: 1px;
+}
+
+/* The anchor lands above the heading rather than flush against the viewport. */
+.how[id] { scroll-margin-top: 20px; }
+
+/* ------------------------------------- how it works: the techniques table */
+/* Three columns on a wide screen, stacked on a narrow one. It is a table of
+   judgements, so the verdict column carries the colour and the other two stay
+   quiet. */
+.adv {
+  border: 1px solid var(--edge);
+  border-radius: var(--r-lg);
+  background: var(--surface-1);
+  overflow: hidden;
+  margin-bottom: 22px;
+}
+
+.adv__row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.1fr) minmax(0, 1.3fr);
+  gap: 18px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--line);
+}
+
+.adv__row:first-child { border-top: 0; }
+
+.adv__row--head {
+  padding-top: 11px;
+  padding-bottom: 9px;
+  background: var(--stage);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.07em;
+  text-transform: lowercase;
+  color: var(--text-3);
+}
+
+.adv__name {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-0);
+}
+
+.adv__name em {
+  display: block;
+  margin-top: 3px;
+  font-style: normal;
+  font-size: 11.5px;
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--text-3);
+}
+
+.adv__what {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-2);
+}
+
+.adv__verdict {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-1);
+  padding-left: 13px;
+  border-left: 2px solid var(--line-strong);
+}
+
+.adv__verdict b {
+  display: block;
+  margin-bottom: 3px;
+  font-weight: 500;
+  color: var(--text-0);
+}
+
+/* The verdict is the only thing on the row that carries colour, so which way
+   each one went is readable before any of it is read. */
+.adv__verdict--yes { border-left-color: var(--green); }
+.adv__verdict--yes b { color: var(--green); }
+.adv__verdict--maybe { border-left-color: var(--amber); }
+.adv__verdict--maybe b { color: var(--amber); }
+.adv__verdict--no { border-left-color: var(--edge-inner); }
+
+@media (max-width: 860px) {
+  .adv__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  .adv__row--head { display: none; }
+  .adv__verdict { margin-top: 2px; }
+}
+
+.how__p--last { margin-bottom: 0; }
+
 /* ------------------------------------------------- how it works: diagrams */
 /* Four fixed pictures, drawn as inline SVG. Everything takes its colour from
    currentColor or a token, so both themes work from one asset. */
