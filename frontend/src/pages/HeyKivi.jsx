@@ -618,12 +618,16 @@ function StageTable({ table }) {
   );
 }
 
+// A stage that really took 0.27 ms should not be reported as "0 ms" - that
+// reads as "not measured" rather than "too fast to matter".
 const fmtMs = (v) =>
   v === null || v === undefined
     ? "—"
     : v >= 1000
       ? `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)} s`
-      : `${Math.round(v)} ms`;
+      : v < 0.5
+        ? "<1 ms"
+        : `${Math.round(v)} ms`;
 
 /**
  * Two stages reconstructed from a logged answer, for turns restored from the

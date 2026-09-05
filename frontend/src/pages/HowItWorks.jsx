@@ -414,43 +414,46 @@ export default function HowItWorks({ status }) {
         </p>
 
         <h3 className="how__h3">
-          Retrieval &mdash; three scores, because each covers the blind spot of the others
+          Retrieval &mdash; six signals, because each covers the blind spot of the others
         </h3>
 
         <Figure
           caption="Three signals carry a configurable weight; three are structural bonuses with none. Measured, the bonuses are the larger half."
-          viewBox="0 0 760 214"
-          height={214}
+          viewBox="0 0 760 250"
+          height={250}
         >
-          <Box x={4} y={86} w={100} title="Question" />
+          <Box x={4} y={104} w={100} title="Question" />
 
           <text x={140} y={12} className="dg__s dg__s--left">WEIGHTED</text>
           <Box x={140} y={18} w={186} h={32} title="Meaning &middot; 0.55" sub="finds paraphrase" />
           <Box x={140} y={54} w={186} h={32} title="Wording &middot; 0.30" sub="finds names, rare words" />
           <Box x={140} y={90} w={186} h={32} title="Recency &middot; 0.15" sub="breaks ties" />
 
-          <text x={140} y={140} className="dg__s dg__s--left">STRUCTURAL &mdash; NO WEIGHT, ADDED DIRECTLY</text>
-          <Box x={140} y={146} w={186} h={26} title="Names a person &middot; +0.40" tone="muted" />
-          <Box x={140} y={176} w={186} h={26} title="Right kind of memory" tone="muted" />
-          <Box x={140} y={206} w={186} h={26} title="Covers the words &middot; +0.28" tone="muted" />
+          <text x={140} y={146} className="dg__s dg__s--left">STRUCTURAL &mdash; NO WEIGHT, ADDED DIRECTLY</text>
+          <Box x={140} y={154} w={186} h={26} title="Names a person &middot; +0.40" tone="muted" />
+          <Box x={140} y={186} w={186} h={26} title="Right kind of memory" tone="muted" />
+          <Box x={140} y={218} w={186} h={26} title="Covers the words &middot; +0.28" tone="muted" />
 
-          <path d="M108 106 L140 34" className="dg__arrow-path" markerEnd="url(#dg-head)" />
-          <path d="M108 106 L140 70" className="dg__arrow-path" markerEnd="url(#dg-head)" />
-          <path d="M108 106 L140 106" className="dg__arrow-path" markerEnd="url(#dg-head)" />
-          <path d="M108 106 L140 159" className="dg__thin" />
-          <path d="M108 106 L140 189" className="dg__thin" />
+          <path d="M108 124 L140 34" className="dg__arrow-path" markerEnd="url(#dg-head)" />
+          <path d="M108 124 L140 70" className="dg__arrow-path" markerEnd="url(#dg-head)" />
+          <path d="M108 124 L140 106" className="dg__arrow-path" markerEnd="url(#dg-head)" />
+          <path d="M108 124 L140 167" className="dg__thin" />
+          <path d="M108 124 L140 199" className="dg__thin" />
+          <path d="M108 124 L140 231" className="dg__thin" />
 
-          <path d="M330 34 L366 106" className="dg__thin" />
-          <path d="M330 70 L366 106" className="dg__thin" />
-          <path d="M330 106 L366 106" className="dg__thin" />
-          <path d="M330 159 L366 106" className="dg__thin" />
-          <path d="M330 189 L366 106" className="dg__thin" />
+          <path d="M330 34 L366 124" className="dg__thin" />
+          <path d="M330 70 L366 124" className="dg__thin" />
+          <path d="M330 106 L366 124" className="dg__thin" />
+          <path d="M330 167 L366 124" className="dg__thin" />
+          <path d="M330 199 L366 124" className="dg__thin" />
+          <path d="M330 231 L366 124" className="dg__thin" />
 
-          <Box x={370} y={86} w={112} title="One score" tone="decide" />
-          <Arrow x1={486} y1={106} x2={518} y2={106} label="superseded?" />
-          <Box x={522} y={86} w={118} title="&times; 0.45" sub="demoted, not cut" tone="warn" />
-          <Arrow x1={644} y1={106} x2={676} y2={106} />
-          <Box x={680} y={86} w={64} title="Top 8" tone="good" />
+          <Box x={370} y={104} w={112} title="One score" tone="decide" />
+          <text x={504} y={96} className="dg__l">superseded?</text>
+          <Arrow x1={486} y1={124} x2={518} y2={124} />
+          <Box x={522} y={104} w={118} title="&times; 0.45" sub="demoted, not cut" tone="warn" />
+          <Arrow x1={644} y1={124} x2={676} y2={124} />
+          <Box x={680} y={104} w={64} title="Top 8" tone="good" />
         </Figure>
 
         <p className="how__p">
@@ -855,12 +858,12 @@ export default function HowItWorks({ status }) {
           <text x={8} y={14} className="dg__s dg__s--left">
             52 EVALUATION CASES
           </text>
-          <rect x={8} y={24} width={694} height={22} rx={3} className="dg__fill-good" />
-          <rect x={706} y={24} width={26} height={22} rx={3} className="dg__fill-warn" />
+          <rect x={8} y={24} width={713} height={22} rx={3} className="dg__fill-good" />
+          <rect x={723} y={24} width={29} height={22} rx={3} className="dg__fill-warn" />
           <text x={8} y={62} className="dg__l dg__l--left">
             50 pass &mdash; and everything a reranker could improve is already inside this
           </text>
-          <text x={700} y={62} className="dg__l dg__l--left">2 fail</text>
+          <text x={716} y={62} className="dg__l dg__l--left">2 fail</text>
 
           <text x={8} y={100} className="dg__s dg__s--left">WHAT THOSE TWO ACTUALLY ARE</text>
           <Box

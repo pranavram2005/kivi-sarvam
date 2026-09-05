@@ -502,9 +502,9 @@ def retrieve(
         "rank",
         "Keep the handful that could bear on it",
         "Anything under the score floor is dropped. If the question named someone, "
-        "memories that never mention them are dropped too - however similar they "
-        "looked - because a memory that is not about Rahul is not an answer to a "
-        "question about Rahul.",
+        "memories that never mention them are dropped too, however similar they "
+        "looked - a memory that is not about that person is not an answer to a "
+        "question about them.",
         facts=[
             ("kept", len(kept)),
             ("dropped", dropped),
