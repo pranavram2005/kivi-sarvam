@@ -25,6 +25,7 @@ from backend.llm.engine import ReasoningEngine, get_engine
 from backend.memory import store
 from backend.memory.retriever import retrieve, retrieve_transcripts, to_answer_context
 from backend.memory.text import content_tokens, normalise
+from backend.memory.trace import NULL as NULL_TRACER, Tracer
 
 
 @dataclass
@@ -164,19 +165,50 @@ def ask(
     engine: ReasoningEngine | None = None,
     top_k: int | None = None,
     persist: bool = True,
+    tracer: Tracer | None = None,
 ) -> HeyKiviAnswer:
     """Answer one Hey Kivi question from stored memory."""
     settings = get_settings()
     engine = engine or get_engine()
     user_id = user_id or settings.default_user_id
     started = time.perf_counter()
+    trace = tracer or NULL_TRACER
 
-    retrieval = retrieve(question, user_id=user_id, top_k=top_k, settings=settings)
+    retrieval = retrieve(
+        question, user_id=user_id, top_k=top_k, settings=settings, tracer=tracer
+    )
     context = to_answer_context(retrieval)
 
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     llm_started = time.perf_counter()
+    trace.begin(
+        "compose",
+        "Write an answer, using only those",
+        "The retrieved memories and the words they came from go to the engine with the "
+        "question. This is the long wait, and on a hosted model it is most of it.",
+    )
     result = engine.answer(question=question, memories=context, plan=retrieval.plan, now=now)
+    trace.stage(
+        "compose",
+        "Write an answer, using only those",
+        "The retrieved memories and the words they came from are handed over with the "
+        "question. The answer has to be built from them and cite which ones it used.",
+        facts=[
+            ("answered by", f"{result.usage.provider} - {result.usage.model}"),
+            ("memories offered", len(context)),
+            ("memories cited", len(result.used_memory_ids)),
+            ("tokens in / out", f"{result.usage.input_tokens} / {result.usage.output_tokens}"),
+            (
+                "cost",
+                f"${result.usage.cost_usd:.6f}" if result.usage.cost_usd else "free - runs offline",
+            ),
+            ("outcome", "declined to answer" if result.abstained else "answered"),
+        ],
+        note="This is the only stage a model touches on the question path. Retrieval, "
+        "the support check and the refusal all run identically whichever engine is "
+        "configured - which is why the guarantee is a property of the system rather "
+        "than of a model behaving well.",
+    )
 
     # --- the rescue -------------------------------------------------------
     # Memories answer; transcripts only rescue. The trigger is ABSTENTION, not
@@ -201,6 +233,20 @@ def ask(
             # honest refusal is the better result.
             if not second.abstained:
                 context, result, fell_back = rescued, second, True
+        trace.stage(
+            "rescue",
+            "Look in the raw dictations",
+            "Memories answer; transcripts only rescue. When no memory supported an "
+            "answer, the words themselves are searched - the answer may be sitting in "
+            "a dictation the extractor passed over.",
+            facts=[
+                ("dictations searched", len(rescued)),
+                ("outcome", "rescued an answer" if fell_back else "still nothing - refusing"),
+            ],
+            note="This runs only on abstention, never alongside a memory answer. That is "
+            "what keeps reconciliation intact: a superseded dictation can never appear "
+            "beside the memory that replaced it.",
+        )
 
     llm_latency_ms = (time.perf_counter() - llm_started) * 1000
 
@@ -238,7 +284,50 @@ def ask(
         for memory in used
     ]
 
+    trace.stage(
+        "verify",
+        "Check the answer is actually made of them",
+        "Not a judgement call - it measures how much of the answer's content vocabulary "
+        "appears in the memories it cited. A fluent answer citing memories it does not "
+        "share words with is a citation that does not hold up.",
+        facts=[
+            ("verdict", "supported" if supported else "not supported"),
+            ("cited", len(used)),
+            ("reason", (reasoning or "-")[:150]),
+        ],
+        note="Ordinary code, not a model. It is why 'Kivi does not invent answers' holds "
+        "whichever engine is configured, instead of being a claim about one model on one "
+        "day.",
+    )
+
     total_latency_ms = (time.perf_counter() - started) * 1000
+    if sources:
+        trace.stage(
+            "provenance",
+            "Trace it back to what was said",
+            "Each cited memory is walked back to the dictation that produced it, so the "
+            "answer arrives attached to the user's own words rather than to Kivi's "
+            "paraphrase of them.",
+            facts=[
+                ("memories cited", len(sources)),
+                (
+                    "source dictations",
+                    len({s.transcript_id for s in sources if s.transcript_id}),
+                ),
+            ],
+            table={
+                "head": ["memory", "from", "when", "app"],
+                "rows": [
+                    [
+                        (s.memory_content or "")[:60],
+                        f"#{s.transcript_id}" if s.transcript_id else "-",
+                        (s.timestamp or "-")[:16].replace("T", " "),
+                        s.application or "-",
+                    ]
+                    for s in sources
+                ],
+            },
+        )
 
     answer = HeyKiviAnswer(
         question=question,

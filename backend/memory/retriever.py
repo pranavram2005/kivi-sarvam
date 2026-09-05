@@ -27,6 +27,7 @@ from typing import Any
 
 from backend.config import get_settings
 from backend.llm.embeddings import cosine, get_embedder
+from backend.memory.trace import NULL as NULL_TRACER, Tracer
 from backend.memory import store
 from backend.memory.query import QueryPlan, plan_query
 from backend.memory.text import content_tokens, normalise
@@ -171,18 +172,58 @@ def retrieve(
     top_k: int | None = None,
     settings=None,
     include_superseded: bool = True,
+    tracer: Tracer | None = None,
 ) -> RetrievalResult:
     """Rank the user's memories against a question."""
     settings = settings or get_settings()
     top_k = top_k or settings.retrieval_top_k
     started = time.perf_counter()
+    trace = tracer or NULL_TRACER
 
     entities = store.known_entities(user_id)
     plan = plan_query(question, entities)
+    trace.stage(
+        "plan",
+        "Read the question",
+        "Works out what is being asked, who or what it names, and which words have "
+        "to appear in an answer for it to count as one.",
+        facts=[
+            ("asking for", plan.intent.replace("_", " ")),
+            ("names", plan.entities or "nobody Kivi knows"),
+            ("must be mentioned", plan.residual_tokens[:6] or "-"),
+            ("ranks on", plan.discriminative_tokens[:6] or "-"),
+            ("also searches for", plan.expansion_terms[:6] or "-"),
+            ("time-sensitive", "yes - recency counts 1.8x" if plan.time_sensitive else "no"),
+        ],
+        note=(
+            f"{plan.entities[0]} is a name Kivi has already learned, so it becomes a "
+            "filter as well as a scoring bonus."
+            if plan.entities
+            else "No known name in the question, so nothing gets filtered out later - "
+            "every memory stays a candidate on score alone."
+        ),
+    )
 
     corpus = store.load_retrievable(user_id)
     if not include_superseded:
         corpus = [m for m in corpus if m["status"] == STATUS_ACTIVE]
+
+    active = sum(1 for m in corpus if m["status"] == STATUS_ACTIVE)
+    trace.stage(
+        "corpus",
+        "Load everything that could answer it",
+        "Every memory this user has - including the ones that were later corrected. "
+        "Those are demoted further down, never hidden.",
+        facts=[
+            ("candidates", len(corpus)),
+            ("current", active),
+            ("superseded", len(corpus) - active),
+            ("how many get scored", "all of them"),
+        ],
+        note="There is no pre-filter and no shortlist: ranking sees the whole corpus. "
+        "That is affordable at one person's scale, and it is why a memory with a weak "
+        "similarity score can still be rescued by a structural signal.",
+    )
 
     if not corpus:
         return RetrievalResult(
@@ -206,6 +247,23 @@ def retrieve(
         for memory in corpus
     ]
     index = BM25Index(documents)
+    vocabulary = len({token for document in documents for token in document})
+    trace.stage(
+        "lexical",
+        "Build the word index",
+        "A BM25 index over every memory, built fresh for this question. It is what "
+        "rescues a rare proper noun, which meaning-matching blurs away.",
+        facts=[
+            ("documents indexed", len(documents)),
+            ("distinct words", vocabulary),
+            (
+                "average length",
+                f"{sum(len(d) for d in documents) / max(1, len(documents)):.1f} words",
+            ),
+        ],
+        note="Rebuilt per question rather than kept warm. It costs milliseconds at this "
+        "size, and it means a memory written one second ago is searchable immediately.",
+    )
 
     # The user's own words and the terms the intent implies are scored
     # separately. Mixed into one bag they compete as equals, and the intent
@@ -220,6 +278,25 @@ def retrieve(
     # --- semantic ---------------------------------------------------------
     embedder = get_embedder()
     query_vector = embedder.embed(plan.search_text)
+    filled = sum(1 for v in query_vector if v)
+    heaviest = sorted((abs(v), i) for i, v in enumerate(query_vector) if v)[-3:][::-1]
+    trace.stage(
+        "embed",
+        "Turn the question into a vector",
+        "Words, word pairs and four-character runs are hashed into a fixed set of "
+        "buckets and the result is normalised, so any two texts can be compared with "
+        "a single dot product.",
+        facts=[
+            ("embedded", plan.search_text[:90]),
+            ("model", f"{embedder.name} - {embedder.model}"),
+            ("dimensions", getattr(embedder, "dim", len(query_vector))),
+            ("buckets used", f"{filled} of {len(query_vector)}"),
+            ("heaviest", [f"#{i} ({w:.2f})" for w, i in heaviest]),
+        ],
+        note="Hashed with blake2b rather than the language's built-in hash, which is "
+        "salted per process - every stored vector would mean something different after "
+        "a restart. Same text, same vector, any machine, no model download.",
+    )
 
     # --- reference point for recency -------------------------------------
     stamps = [
@@ -321,6 +398,54 @@ def retrieve(
         )
 
     scored.sort(key=lambda s: s.score, reverse=True)
+    trace.stage(
+        "score",
+        "Score every memory on six signals",
+        "Three of them carry a configurable weight; three are structural bonuses added "
+        "outright. The total is scaled by how confident Kivi was when it learned the "
+        "memory, and cut to 45% if the memory has since been corrected.",
+        facts=[
+            ("scored", len(scored)),
+            ("meaning", f"x{settings.semantic_weight}"),
+            ("wording", f"x{settings.lexical_weight}"),
+            (
+                "recency",
+                f"x{recency_weight:.3f}"
+                + (" - raised, the question is time-sensitive" if plan.time_sensitive else ""),
+            ),
+            ("names someone", "+0.28 to +0.40, unweighted"),
+            ("right kind of memory", "unweighted; type and attribute both count"),
+            ("covers the question", "up to +0.28, unweighted"),
+        ],
+        table={
+            "head": [
+                "memory",
+                "meaning",
+                "wording",
+                "recency",
+                "names",
+                "kind",
+                "covers",
+                "score",
+            ],
+            "rows": [
+                [
+                    (item.memory.get("content") or "")[:64],
+                    f"{item.semantic:.3f}",
+                    f"{item.lexical:.3f}",
+                    f"{item.recency:.3f}",
+                    f"{item.entity_bonus:.2f}",
+                    f"{item.type_bonus:.2f}",
+                    f"{item.coverage:.2f}",
+                    f"{item.score:.3f}",
+                ]
+                for item in scored[:5]
+            ],
+        },
+        note="The bonuses are deliberately unweighted. Naming a person is an explicit "
+        "signal, and no similarity metric infers it as reliably as the question simply "
+        "saying the name.",
+    )
 
     # An entity named in the question acts as a filter, not just a bonus: if
     # Kivi knows about "Rahul", a memory that never mentions Rahul is not an
@@ -370,6 +495,39 @@ def retrieve(
             if preferences:
                 kept = (kept[: max(1, top_k - len(preferences))] + preferences)
                 kept.sort(key=lambda s: s.score, reverse=True)
+
+    dropped = len(scored) - len(kept)
+    demoted = sum(1 for s in kept if s.memory["status"] != STATUS_ACTIVE)
+    trace.stage(
+        "rank",
+        "Keep the handful that could bear on it",
+        "Anything under the score floor is dropped. If the question named someone, "
+        "memories that never mention them are dropped too - however similar they "
+        "looked - because a memory that is not about Rahul is not an answer to a "
+        "question about Rahul.",
+        facts=[
+            ("kept", len(kept)),
+            ("dropped", dropped),
+            ("score floor", settings.min_retrieval_score),
+            ("superseded, kept but demoted", demoted or None),
+            ("top score", f"{kept[0].score:.3f}" if kept else "nothing cleared the floor"),
+        ],
+        table={
+            "head": ["#", "kept", "type", "status", "score"],
+            "rows": [
+                [
+                    str(i + 1),
+                    (item.memory.get("content") or "")[:72],
+                    item.memory.get("type") or "-",
+                    item.memory.get("status") or "-",
+                    f"{item.score:.3f}",
+                ]
+                for i, item in enumerate(kept)
+            ],
+        },
+        note="A corrected memory is kept at 45% of its score rather than removed, which "
+        "is why what did I say before? still has an answer.",
+    )
 
     return RetrievalResult(
         plan=plan,

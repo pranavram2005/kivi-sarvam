@@ -1602,10 +1602,190 @@ code {
   margin-top: 1px;
 }
 
-.pipe__fact {
+/* Each row is its own grid with the same fixed first column, so the values
+   line up down the whole list without the labels being clipped. */
+.pipe__facts {
+  margin: 6px 0 0;
+  display: grid;
+  gap: 1px;
+  border-top: 1px solid var(--line);
+  padding-top: 5px;
+}
+
+.pipe__fact-row {
+  display: grid;
+  grid-template-columns: minmax(0, 168px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+  padding: 1.5px 0;
+}
+
+.pipe__fact-row dt {
+  font-size: 11.5px;
+  color: var(--text-3);
+  overflow-wrap: anywhere;
+}
+
+.pipe__fact-row dd {
+  margin: 0;
   font-size: 11.5px;
   color: var(--green);
-  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .pipe__fact-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
+
+.pipe__line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pipe__ms {
+  font-size: 11px;
+  color: var(--text-3);
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.pipe__step--run .pipe__ms {
+  color: var(--amber);
+}
+
+.pipe__step--run .pipe__n {
+  background: var(--surface-3);
+  color: var(--text-3);
+}
+
+.pipe__more {
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-2);
+  cursor: pointer;
+  border-bottom: 1px dotted var(--line-strong);
+}
+
+.pipe__more:hover {
+  color: var(--text-0);
+}
+
+.pipe__detail {
+  margin-top: 8px;
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--stage);
+}
+
+.pipe__note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-2);
+  max-width: 68ch;
+}
+
+.pipe__detail .pipe__table-scroll + .pipe__note {
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+}
+
+/* Wide tables scroll inside their own box rather than widening the answer. */
+.pipe__table-scroll {
+  overflow-x: auto;
+  min-width: 0;
+}
+
+.pipe__table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 11.5px;
+}
+
+.pipe__table th {
+  text-align: left;
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: lowercase;
+  color: var(--text-3);
+  padding: 0 10px 5px 0;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.pipe__table td {
+  padding: 5px 10px 5px 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--text-1);
+  vertical-align: top;
+}
+
+.pipe__table tr:last-child td {
+  border-bottom: 0;
+}
+
+.pipe__num {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-0);
+}
+
+/* ---- where the time went ------------------------------------------------ */
+/* One stacked bar of a single total. The rows below are its legend, so only
+   the segment that dominates gets a label - and on a real question one segment
+   is most of the bar. */
+.pipe__bar {
+  padding: 8px 14px 0;
+}
+
+.pipe__bar-track {
+  display: flex;
+  gap: 2px;
+  height: 6px;
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  background: var(--surface-3);
+}
+
+.pipe__seg {
+  display: block;
+  min-width: 2px;
+  background: var(--green-deep);
+  border-radius: 1px;
+}
+
+.pipe__seg--slow {
+  background: var(--green);
+}
+
+.pipe__bar-note {
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+
+.pipe__bar-note b {
+  color: var(--text-0);
+  font-weight: 500;
+}
+
+.pipe__bar-note i {
+  font-style: normal;
+  color: var(--green);
 }
 
 /* ------------------------------------------------- how it works: diagrams */
@@ -1685,6 +1865,15 @@ code {
   font-size: 9.5px;
   text-anchor: middle;
 }
+.dg__l--left {
+  text-anchor: start;
+  fill: var(--text-1);
+  font-size: 10.5px;
+}
+
+/* Bars inside a diagram: the one measurement a picture makes directly. */
+.dg__fill-warn { fill: var(--amber); opacity: 0.75; }
+.dg__fill-good { fill: var(--green); }
 
 /* arrows */
 .dg__arrow path,

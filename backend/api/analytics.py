@@ -181,7 +181,6 @@ def memory_analytics() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Queries — how Kivi answers
 # ---------------------------------------------------------------------------
-@router.get("/queries")
 def _signal_contributions(conn, user: str) -> dict[str, Any]:
     """How much each retrieval signal actually contributes, measured.
 
@@ -263,6 +262,7 @@ def _signal_contributions(conn, user: str) -> dict[str, Any]:
     }
 
 
+@router.get("/queries")
 def query_analytics() -> dict[str, Any]:
     user = get_settings().default_user_id
     conn = store.get_connection()

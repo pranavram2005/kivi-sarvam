@@ -20,6 +20,7 @@ saying plainly when it does not know.**
 - [How a memory is created — and what is ignored](#how-a-memory-is-created--and-what-is-ignored)
 - [How corrections work](#how-corrections-work)
 - [Retrieval](#retrieval)
+  - [Would a vector database help?](#would-a-vector-database-help)
   - [The rescue: when nothing was learned](#the-rescue-when-nothing-was-learned)
 - [How Hey Kivi answers](#how-hey-kivi-answers)
 - [Provenance](#provenance)
@@ -279,20 +280,24 @@ installation has been asked so far:
 
 | Signal | Mean contribution | Share |
 | --- | ---: | ---: |
-| names a person or project *(structural)* | 0.285 | 22.6% |
-| right kind of memory *(structural)* | 0.276 | 21.9% |
-| meaning — weighted 0.55 | 0.253 | 20.1% |
-| wording — weighted 0.30 | 0.244 | 19.4% |
-| recency — weighted 0.15 | 0.106 | 8.4% |
-| covers the question's words *(structural)* | 0.098 | 7.7% |
+| right kind of memory *(structural)* | 0.302 | 23.6% |
+| names a person or project *(structural)* | 0.275 | 21.4% |
+| meaning — weighted 0.55 | 0.251 | 19.6% |
+| wording — weighted 0.30 | 0.244 | 19.1% |
+| recency — weighted 0.15 | 0.105 | 8.2% |
+| covers the question's words *(structural)* | 0.103 | 8.1% |
 
-The three signals with no configurable weight account for **52%** of the score.
-That is a fact about these questions rather than a law about retrieval - a
+*(A snapshot at 29 logged questions. The numbers here move as questions are
+asked, which is the point — read the current ones from the endpoint or the
+screen rather than trusting this table.)*
+
+The three signals with no configurable weight account for **53%** of the score.
+That is a fact about these questions rather than a law about retrieval — a
 question set that always names a person will find the entity bonus dominant,
-because it is - but it is worth knowing before tuning a weight expecting it to
-matter. It also says where effort would pay: entity matching is both the largest
-single signal and the weakest implementation, recognised by capitalisation
-alone.
+because it is — but it is worth knowing before tuning a weight and expecting it
+to matter. It also says where effort would pay: entity matching is both among
+the largest signals and the weakest implementation, recognised by
+capitalisation and a substring match.
 
 Three details that mattered more than the weights:
 
@@ -319,6 +324,50 @@ draft to Priya, so a slot is reserved for it.
 *role*, *leads*, *team*…) are scored separately at 0.3 weight. Mixed into one
 bag they win, and *"who is the finance lead"* matches every team-membership
 sentence better than the one sentence containing *finance*.
+
+### Would a vector database help?
+
+The usual next question, so here is the measurement rather than an opinion.
+Kivi is already retrieval-augmented generation — a question retrieves
+memories, the memories go to the engine, the engine writes from them and from
+nothing else. What FAISS or a hosted vector database would replace is the
+*index*: how the nearest vectors are found, not how well they answer.
+
+There is no index. Every question scans every vector, exactly. On this
+installation, 402 memories at 512 dimensions:
+
+| Approach | Time | Exact? |
+| --- | ---: | --- |
+| What Kivi does now — a Python loop | 123 ms | yes |
+| The same scan as one `numpy` matmul | 0.13 ms | yes |
+| An approximate index (FAISS et al.) | — | no, by design |
+
+So: **no, and not for the reason people expect.** The exhaustive search is
+already fast enough that an approximate index has nothing left to buy, and one
+line of vectorised arithmetic beats the current loop by three orders of
+magnitude *without* giving up exactness. An ANN index earns its place somewhere
+around a hundred thousand vectors — decades of dictation away.
+
+Scale matters more than the ratio. A question against a hosted model takes
+about ten seconds end to end, of which the vector scan is roughly 1%. And
+because an approximate index buys speed by giving up recall, it could only move
+the number that actually matters — how often the right memory is retrieved — in
+the wrong direction.
+
+**What would help is the embedding, not the index.** The blind spot is not
+finding the nearest vector; it is that *nearest* is measured over hashed words
+and character runs, so two sentences that mean the same thing in different
+vocabulary are not near each other at all. Both evaluation failures are exactly
+that. A real sentence-embedding model closes that gap and no index ever will —
+at the cost of a model download, which is what the current promise (clone, run,
+index 500 dictations offline in seconds, fetch nothing) is buying with the
+accuracy it gives up.
+
+At a larger scale the order of problems is: vectorise the scan around 10k
+memories; the per-question BM25 rebuild becomes the bottleneck before vector
+search does; past a few hundred thousand an approximate index is finally worth
+it, by which point sharding by user matters more and SQLite has stopped being
+the right answer either.
 
 ### The rescue: when nothing was learned
 
@@ -485,9 +534,27 @@ it belongs.
 | Screen | Purpose |
 | --- | --- |
 | **History** | The dictation feed, grouped by day. Opening one shows the raw ASR, the formatted text, and what Kivi learned — or why it learned nothing. New dictations can be added live. |
-| **Hey Kivi** | The product. Question in, grounded answer out, memories used printed underneath. "Show working" reveals the full retrieval ranking. The composer also has a **Dictate** mode: speak into the same box and Kivi replies with what it decided to remember — or that it decided to remember nothing, and why. |
+| **Hey Kivi** | The product. Question in, grounded answer out, memories used printed underneath. Each stage of the pipeline reports itself *while the question runs*, carrying what it actually computed; "Show working" reveals the full retrieval ranking. The composer also has a **Dictate** mode: speak into the same box and Kivi replies with what it decided to remember — or that it decided to remember nothing, and why. |
 | **What Kivi Knows** | Current understanding grouped by people, projects, coming up, commitments and preferences — plus an archive of everything replaced or forgotten. |
 | **Inspector** | For reviewers. The evaluation run with failures shown first, corpus statistics, the query log, and full provenance traces. |
+
+**The pipeline narrates itself.** `POST /api/stream/ask` and
+`POST /api/stream/dictate` run the ordinary pipeline and emit a server-sent
+event as each stage finishes — the entities parsed out of the question, how
+many of the query vector's 512 buckets are non-zero, the six signal scores for
+the top candidates, the model's own latency, which memory superseded which.
+Nothing is estimated and nothing is re-implemented for the transport: the
+events come from `retrieve`, `ask` and `process_transcript` themselves, and the
+row on screen appears because that stage finished.
+
+This replaced an animation — three thresholds calibrated from measured medians
+and a timer stepping through them. It was honest about being an estimate, but
+it was still the client re-enacting what it believed the server was doing.
+Narrating it properly also makes the system's shape visible: a question spends
+about 180 ms in retrieval and about ten seconds waiting for a model, so the
+header carries a bar of where the time went and it is nearly all one colour.
+If the stream fails — a proxy that buffers event-streams, an older backend —
+the client falls back to the plain `POST` and loses the trace, not the answer.
 
 Dictation appears on two screens on purpose. History is the archive — where
 you go to look something up. Hey Kivi is the conversation, and the assignment
@@ -808,7 +875,7 @@ Known and honest.
 ```
 kivi-semantic-memory/
 ├── backend/
-│   ├── api/            transcripts · memories · hey-kivi · system/evaluation
+│   ├── api/            transcripts · memories · hey-kivi · stream · system/evaluation
 │   ├── database/       SQLite connection, migrations, vector packing
 │   ├── llm/
 │   │   ├── engine.py       ReasoningEngine: extract / resolve / answer
@@ -818,16 +885,17 @@ kivi-semantic-memory/
 │   │   └── embeddings.py   hashing (default) · openai · gemini · sentence-transformers
 │   ├── memory/
 │   │   ├── extractor.py    transcript → memories, with reconciliation
-│   │   ├── retriever.py    four-signal hybrid ranking
+│   │   ├── retriever.py    six-signal hybrid ranking
 │   │   ├── query.py        question → intent, entities, residual/discriminative
 │   │   ├── heykivi.py      ask() + support verification + provenance
 │   │   ├── store.py        every read and write
+│   │   ├── trace.py        the stage events the pipeline reports as it runs
 │   │   └── text.py         tokenisation and vocabularies
 │   ├── models/         Pydantic request/response models
 │   ├── config.py       settings + model price table
 │   └── main.py         FastAPI app
 ├── frontend/src/
-│   ├── pages/          History · HeyKivi · Knowledge · Inspector
+│   ├── pages/          History · HeyKivi · Knowledge · Inspector · HowItWorks
 │   ├── styles/kivi.css Kivi's design tokens
 │   └── services/api.js
 ├── data/development_corpus.jsonl      500 records
@@ -837,7 +905,7 @@ kivi-semantic-memory/
 │   └── results/        committed results from the reference run
 ├── scripts/            generate_corpus · migrate · import_corpus ·
 │                       process_corpus · seed · reset
-├── migrations/001_initial.sql
+├── migrations/          001_initial · 002_transcript_deletions
 ├── docs/CORPUS_FORMAT.md
 ├── PRODUCT_POSITIONING.md    ← Part One (author's own writing)
 ├── PRODUCT_VISION.md         ← Part One (author's own writing)

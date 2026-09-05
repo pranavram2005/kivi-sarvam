@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend import __version__
-from backend.api import analytics, heykivi, memories, system, transcripts
+from backend.api import analytics, heykivi, memories, stream, system, transcripts
 from backend.config import REPO_ROOT, get_settings
 from backend.database.db import init_db
 
@@ -60,6 +60,7 @@ app.include_router(heykivi.router)
 app.include_router(system.router)
 app.include_router(system.eval_router)
 app.include_router(analytics.router)
+app.include_router(stream.router)
 
 
 # ---------------------------------------------------------------------------

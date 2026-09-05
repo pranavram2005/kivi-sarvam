@@ -51,6 +51,77 @@ const qs = (params) => {
   return string ? `?${string}` : "";
 };
 
+/**
+ * Consume a server-sent-event stream from a POST.
+ *
+ * `EventSource` only does GET, and both of these endpoints take a body, so the
+ * stream is read off `fetch` by hand. SSE framing is simple enough that this is
+ * a dozen lines: events are separated by a blank line, and the two fields that
+ * matter are `event:` and `data:`.
+ *
+ * The buffer split is the part worth being careful about - a chunk boundary
+ * falls wherever the network puts it, so a frame routinely arrives in two
+ * pieces. Everything up to the last blank line is complete; whatever follows it
+ * stays in the buffer for the next chunk.
+ */
+async function stream(path, body, onEvent) {
+  let response;
+  try {
+    response = await fetch(`${BASE}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+      body: JSON.stringify(body),
+    });
+  } catch (cause) {
+    throw new Error(
+      "Could not reach the Kivi backend. Is it running? " +
+        "Start it with: uvicorn backend.main:app --reload",
+    );
+  }
+  if (!response.ok || !response.body) {
+    throw new Error(`${response.status} ${response.statusText}`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result = null;
+  let failure = null;
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const frames = buffer.split("\n\n");
+    buffer = frames.pop() ?? "";
+
+    for (const frame of frames) {
+      let name = "message";
+      const data = [];
+      for (const line of frame.split("\n")) {
+        if (line.startsWith("event:")) name = line.slice(6).trim();
+        else if (line.startsWith("data:")) data.push(line.slice(5).trim());
+      }
+      if (!data.length) continue;
+
+      let payload;
+      try {
+        payload = JSON.parse(data.join("\n"));
+      } catch {
+        continue; // a frame we cannot read is not worth failing the stream over
+      }
+
+      if (name === "stage") onEvent?.(payload);
+      else if (name === "done") result = payload;
+      else if (name === "error") failure = payload?.detail || "the pipeline failed";
+    }
+  }
+
+  if (failure) throw new Error(failure);
+  return result;
+}
+
 export const api = {
   // ---- system ----------------------------------------------------------
   status: () => request("/system/status"),
@@ -104,6 +175,15 @@ export const api = {
   historyAnalytics: () => request("/analytics/history"),
   memoryAnalytics: () => request("/analytics/memory"),
   queryAnalytics: () => request("/analytics/queries"),
+
+  // ---- the same two operations, narrated stage by stage -----------------
+  // `onStage` is called as each stage of the real pipeline finishes, carrying
+  // the values that stage actually computed. The resolved value is identical
+  // to what the plain call above returns, so a caller can fall back to it.
+  askStreaming: (question, onStage, topK) =>
+    stream("/stream/ask", { question, top_k: topK }, onStage),
+
+  dictateStreaming: (payload, onStage) => stream("/stream/dictate", payload, onStage),
 };
 
 /** Format an ISO timestamp as a short, readable clock time. */

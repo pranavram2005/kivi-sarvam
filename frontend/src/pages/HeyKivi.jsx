@@ -43,6 +43,10 @@ export default function HeyKivi({ onRefresh }) {
   const [loadingEarlier, setLoadingEarlier] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [stats, setStats] = useState(null);
+  // The stages the server has reported for the question in flight. A stage
+  // arrives when it finishes; the three that call a model announce themselves
+  // first, so the row that is genuinely waiting says so while it waits.
+  const [live, setLive] = useState([]);
   const [error, setError] = useState(null);
   const endRef = useRef(null);
   const inputRef = useRef(null);
@@ -71,16 +75,51 @@ export default function HeyKivi({ onRefresh }) {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [turns, asking]);
 
+  // One event, folded into the list. An announced stage is a placeholder; when
+  // the finished event for the same stage arrives it replaces the placeholder
+  // rather than appearing beneath it.
+  function onStage(event) {
+    setLive((prev) => {
+      const last = prev[prev.length - 1];
+      if (last?.pending && last.stage === event.stage) return [...prev.slice(0, -1), event];
+      return [...prev, event];
+    });
+  }
+
   async function ask(text) {
     const trimmed = (text ?? question).trim();
     if (!trimmed || asking) return;
     setQuestion("");
     setError(null);
     setAsking(true);
+    setLive([]);
     setTurns((prev) => [...prev, { role: "user", text: trimmed }]);
+
+    // Collected here as well as in state: the turn keeps its own copy of the
+    // trace, so scrolling back to an earlier answer still shows how that
+    // answer in particular was reached.
+    const trace = [];
+    const collect = (event) => {
+      const last = trace[trace.length - 1];
+      if (last?.pending && last.stage === event.stage) trace[trace.length - 1] = event;
+      else trace.push(event);
+      onStage(event);
+    };
+
     try {
-      const answer = await api.ask(trimmed);
-      setTurns((prev) => [...prev, { role: "kivi", answer }]);
+      let answer;
+      try {
+        answer = await api.askStreaming(trimmed, collect);
+      } catch (streamFailure) {
+        // A proxy that buffers event-streams, or an older backend, should cost
+        // the trace and nothing else. The answer is what the user asked for.
+        answer = await api.ask(trimmed);
+        trace.length = 0;
+      }
+      setTurns((prev) => [
+        ...prev,
+        { role: "kivi", answer, stages: trace.filter((e) => !e.pending) },
+      ]);
       api.queryAnalytics().then(setStats).catch(() => {});
     } catch (err) {
       setError(err);
@@ -88,6 +127,7 @@ export default function HeyKivi({ onRefresh }) {
       setQuestion(trimmed);
     } finally {
       setAsking(false);
+      setLive([]);
       inputRef.current?.focus();
     }
   }
@@ -98,9 +138,19 @@ export default function HeyKivi({ onRefresh }) {
     setQuestion("");
     setError(null);
     setAsking(true);
+    setLive([]);
     setTurns((prev) => [...prev, { role: "user", text, dictation: true, application }]);
+
+    const trace = [];
+    const collect = (event) => {
+      const last = trace[trace.length - 1];
+      if (last?.pending && last.stage === event.stage) trace[trace.length - 1] = event;
+      else trace.push(event);
+      onStage(event);
+    };
+
     try {
-      const created = await api.addTranscript({
+      const payload = {
         // The corpus stores a raw recogniser pass alongside the formatted text.
         // Typed input has no recogniser, so we approximate one rather than
         // pretend the two are identical.
@@ -108,8 +158,20 @@ export default function HeyKivi({ onRefresh }) {
         formatted_text: text,
         timestamp: new Date().toISOString(),
         application,
-      });
-      setTurns((prev) => [...prev, { role: "learned", transcript: created }]);
+      };
+
+      let created;
+      try {
+        const result = await api.dictateStreaming(payload, collect);
+        created = result.transcript;
+      } catch (streamFailure) {
+        created = await api.addTranscript(payload);
+        trace.length = 0;
+      }
+      setTurns((prev) => [
+        ...prev,
+        { role: "learned", transcript: created, stages: trace.filter((e) => !e.pending) },
+      ]);
       onRefresh?.();
     } catch (err) {
       setError(err);
@@ -117,6 +179,7 @@ export default function HeyKivi({ onRefresh }) {
       setQuestion(text);
     } finally {
       setAsking(false);
+      setLive([]);
       inputRef.current?.focus();
     }
   }
@@ -189,9 +252,14 @@ export default function HeyKivi({ onRefresh }) {
               </div>
             </div>
           ) : turn.role === "learned" ? (
-            <Learned key={index} transcript={turn.transcript} />
+            <Learned key={index} transcript={turn.transcript} stages={turn.stages} />
           ) : (
-            <Answer key={index} answer={turn.answer} restored={turn.restored} />
+            <Answer
+              key={index}
+              answer={turn.answer}
+              stages={turn.stages}
+              restored={turn.restored}
+            />
           ),
         )}
         {asking ? (
@@ -200,9 +268,11 @@ export default function HeyKivi({ onRefresh }) {
             <div style={{ minWidth: 0, flex: 1 }}>
               <div className="thinking">
                 <Spinner />
-                <span>Working through your memory…</span>
+                <span>
+                  {dictateMode ? "Working out what to keep…" : "Working through your memory…"}
+                </span>
               </div>
-              <Pipeline pending />
+              <Pipeline pending stages={live} />
             </div>
           </div>
         ) : null}
@@ -371,28 +441,29 @@ const SHAPES = {
 };
 
 /**
- * The route a question takes, live while it runs and settled once it lands.
+ * The route a question takes, reported by the pipeline itself.
  *
- * The advance is driven by measured timings rather than invented ones. Across
- * the queries logged by this installation the median split is:
+ * This used to be an animation: three thresholds calibrated from measured
+ * medians, and a timer stepping through them. It was honest about being an
+ * estimate, but it was still the client re-enacting what it believed the
+ * server was doing.
  *
- *     read the question + search memory     ~154 ms   (about 6% of the wait)
- *     ask the model                        ~2417 ms   (about 90%)
+ * Now the server narrates. `POST /api/stream/ask` runs the ordinary pipeline
+ * and emits an event as each stage finishes, carrying the values that stage
+ * actually computed - the entities parsed out of the question, how many of the
+ * vector's buckets are non-zero, the six signal scores for the top candidates,
+ * the model's own latency. A row appears because that stage finished, and the
+ * numbers on it were measured rather than assumed.
  *
- * So the first two steps really do go past almost immediately and the wait
- * really does sit in the last one. Stepping on those numbers reflects where
- * the time goes; it does not pretend to observe a stage the client cannot see.
- *
- * Two rules keep it honest. Only the elapsed clock is shown while running -
- * never a per-stage duration, which would be a guess presented as a
- * measurement. And when the answer arrives every row is replaced by what the
- * backend actually reported, including the total, so an estimate never
- * survives into the record.
+ * Which is worth doing for a reason beyond fidelity. On this installation a
+ * question spends about 180 ms in retrieval and about ten seconds waiting for a
+ * model. A progress list that does not show that is hiding the single most
+ * important fact about the system's shape - so the header carries a bar of
+ * where the time actually went, and it is nearly all one colour.
  */
-const STAGE_MS = [90, 154, 210];
-
-function Pipeline({ answer = null, pending = false }) {
+function Pipeline({ answer = null, stages = [], pending = false }) {
   const [elapsed, setElapsed] = useState(0);
+  const [open, setOpen] = useState(null);
 
   useEffect(() => {
     if (!pending) return undefined;
@@ -402,86 +473,77 @@ function Pipeline({ answer = null, pending = false }) {
     return () => clearInterval(id);
   }, [pending]);
 
-  const d = answer?.diagnostics || {};
-  const retrieved = answer?.retrieved_memory_ids?.length;
-  const used = answer?.used_memory_ids?.length;
-  const ms = (v) => (v || v === 0 ? `${Math.round(v)} ms` : null);
+  // A restored turn from the query log has an answer but no trace - it was
+  // answered before this screen was open. Rather than show nothing, the log's
+  // own diagnostics are turned back into the two stages they describe.
+  const rows = stages.length ? stages : fromDiagnostics(answer);
+  if (!rows.length && !pending) return null;
 
-  // Which step is running: the first threshold the clock has not passed.
-  const current = pending ? STAGE_MS.findIndex((t) => elapsed < t) : -1;
-  const running = pending ? (current === -1 ? 3 : current) : -1;
-
-  const stages = [
-    {
-      name: "Read the question",
-      does: "Works out what is being asked and which people or projects it names.",
-      fact: answer
-        ? [answer.intent, answer.entities?.length ? answer.entities.join(", ") : null]
-            .filter(Boolean)
-            .join(" · ")
-        : null,
-    },
-    {
-      name: "Search memory",
-      does: "Scores every active memory on meaning, wording and recency, and keeps the best few.",
-      fact: answer
-        ? [retrieved != null ? `${retrieved} retrieved` : null, ms(d.retrieval_latency_ms)]
-            .filter(Boolean)
-            .join(" · ")
-        : null,
-    },
-    {
-      name: "Check the memory supports it",
-      does: "Refuses rather than guesses if nothing retrieved actually mentions the topic.",
-      fact: answer
-        ? answer.abstained
-          ? "abstained — nothing supported it"
-          : answer.supported
-            ? "supported"
-            : "unsupported"
-        : null,
-    },
-    {
-      name: "Answer from what was found",
-      does: "Builds the answer only from the memories it kept, and cites them.",
-      fact: answer
-        ? [
-            used != null ? `${used} used` : null,
-            ms(d.llm_latency_ms),
-            d.provider ? `${d.provider}${d.model && d.model !== d.provider ? ` · ${d.model}` : ""}` : null,
-          ]
-            .filter(Boolean)
-            .join(" · ")
-        : null,
-    },
-  ];
+  const total = rows.length ? rows[rows.length - 1].at_ms : null;
+  const settled = !pending && rows.length > 0;
+  const slowest = rows.reduce((a, b) => (b.ms > (a?.ms ?? -1) ? b : a), null);
 
   return (
     <div className={`pipe${pending ? " pipe--pending" : ""}`}>
       <div className="pipe__head">
-        {pending ? "working" : "how this answer was produced"}
+        <span>{pending ? "watching it work" : "how this answer was produced"}</span>
         <span className="pipe__total mono">
           {pending
             ? `${(elapsed / 1000).toFixed(1)}s`
-            : d.total_latency_ms
-              ? `${Math.round(d.total_latency_ms)} ms total`
+            : total
+              ? `${fmtMs(total)} total`
               : ""}
         </span>
       </div>
 
+      {settled && total > 0 ? <TimeBar rows={rows} total={total} slowest={slowest} /> : null}
+
       <ol className="pipe__list">
-        {stages.map((st, i) => {
-          const state = pending ? (i < running ? "done" : i === running ? "run" : "wait") : "done";
+        {rows.map((stage, i) => {
+          const isOpen = open === i;
+          const state = stage.pending ? "run" : "done";
+          const detail = (stage.facts?.length || 0) + (stage.table ? 1 : 0) > 0;
           return (
-            <li className={`pipe__step pipe__step--${state}`} key={st.name}>
+            <li className={`pipe__step pipe__step--${state}`} key={`${stage.stage}-${i}`}>
               <span className="pipe__n">
-                {state === "done" ? "✓" : state === "run" ? <span className="pipe__pulse" /> : i + 1}
+                {state === "run" ? <span className="pipe__pulse" /> : "✓"}
               </span>
               <div className="pipe__body">
-                <div className="pipe__name">{st.name}</div>
-                <div className="pipe__does">{st.does}</div>
-                {st.fact ? <div className="pipe__fact mono">{st.fact}</div> : null}
-                {state === "run" ? <div className="pipe__fact mono">running…</div> : null}
+                <div className="pipe__line">
+                  <span className="pipe__name">{stage.label}</span>
+                  <span className="pipe__ms mono">
+                    {state === "run" ? "running…" : fmtMs(stage.ms)}
+                  </span>
+                </div>
+                <div className="pipe__does">{stage.does}</div>
+
+                {stage.facts?.length ? (
+                  <dl className="pipe__facts">
+                    {stage.facts.map(([label, value]) => (
+                      <div className="pipe__fact-row" key={label}>
+                        <dt>{label}</dt>
+                        <dd className="mono">{String(value)}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : null}
+
+                {detail && (stage.table || stage.note) ? (
+                  <button
+                    className="pipe__more"
+                    onClick={() => setOpen(isOpen ? null : i)}
+                    aria-expanded={isOpen}
+                  >
+                    {isOpen ? "hide" : stage.table ? "show what it saw" : "why it works this way"}
+                  </button>
+                ) : null}
+
+                {isOpen ? (
+                  <div className="pipe__detail">
+                    {stage.table ? <StageTable table={stage.table} /> : null}
+                    {stage.note ? <p className="pipe__note">{stage.note}</p> : null}
+                  </div>
+                ) : null}
               </div>
             </li>
           );
@@ -491,7 +553,124 @@ function Pipeline({ answer = null, pending = false }) {
   );
 }
 
-function Answer({ answer, restored = false }) {
+/**
+ * Where the time went, as one bar.
+ *
+ * A stacked bar of a single total, so the segments are the series and the list
+ * below is the legend - no second colour key needed. Only the segment that
+ * dominates is labelled, because on a real question one segment is ~98% of the
+ * bar and labelling the other nine would be labelling slivers.
+ */
+function TimeBar({ rows, total, slowest }) {
+  return (
+    <div className="pipe__bar">
+      <div className="pipe__bar-track">
+        {rows.map((stage, i) => {
+          const share = stage.ms / total;
+          if (share <= 0) return null;
+          return (
+            <span
+              key={`${stage.stage}-${i}`}
+              className={`pipe__seg${stage === slowest ? " pipe__seg--slow" : ""}`}
+              style={{ flexGrow: stage.ms }}
+              title={`${stage.label} — ${fmtMs(stage.ms)}, ${(share * 100).toFixed(1)}%`}
+            />
+          );
+        })}
+      </div>
+      {slowest && slowest.ms / total > 0.4 ? (
+        <div className="pipe__bar-note">
+          <b>{Math.round((slowest.ms / total) * 100)}%</b> of the wait was{" "}
+          <i>{slowest.label.toLowerCase()}</i>
+          {slowest.stage === "compose"
+            ? " — everything Kivi does itself took the rest"
+            : ""}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function StageTable({ table }) {
+  return (
+    <div className="pipe__table-scroll">
+      <table className="pipe__table">
+        <thead>
+          <tr>
+            {table.head.map((h) => (
+              <th key={h}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {table.rows.map((row, i) => (
+            <tr key={i}>
+              {row.map((cell, j) => (
+                <td key={j} className={j === 0 ? "" : "mono pipe__num"}>
+                  {cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const fmtMs = (v) =>
+  v === null || v === undefined
+    ? "—"
+    : v >= 1000
+      ? `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)} s`
+      : `${Math.round(v)} ms`;
+
+/**
+ * Two stages reconstructed from a logged answer, for turns restored from the
+ * query log. Deliberately only two: those are the only ones the log timed, and
+ * inventing the other eight from an average would be exactly the estimate this
+ * component was rewritten to stop making.
+ */
+function fromDiagnostics(answer) {
+  if (!answer) return [];
+  const d = answer.diagnostics || {};
+  if (!d.total_latency_ms) return [];
+  const retrieval = d.retrieval_latency_ms || 0;
+  return [
+    {
+      stage: "retrieve",
+      label: "Search memory",
+      does: "Scored every memory on meaning, wording, recency and three structural signals, and kept the best few.",
+      ms: retrieval,
+      at_ms: retrieval,
+      facts: [
+        ["considered", d.memories_considered],
+        ["retrieved", d.memories_retrieved],
+        ["asking for", answer.intent],
+        ["names", answer.entities?.join(", ") || "nobody Kivi knows"],
+      ].filter(([, v]) => v !== undefined && v !== null),
+    },
+    {
+      stage: "compose",
+      label: "Write an answer, using only those",
+      does: "Built the answer from the memories it kept, and cited them.",
+      ms: d.llm_latency_ms || 0,
+      at_ms: d.total_latency_ms,
+      facts: [
+        ["answered by", d.provider ? `${d.provider} - ${d.model}` : null],
+        ["memories cited", d.memories_used],
+        ["tokens in / out", d.input_tokens ? `${d.input_tokens} / ${d.output_tokens}` : null],
+        [
+          "outcome",
+          answer.abstained ? "declined to answer" : answer.supported ? "supported" : "unsupported",
+        ],
+      ].filter(([, v]) => v !== undefined && v !== null),
+      note: "Restored from the query log, which timed retrieval and the model but not the stages inside them.",
+    },
+  ];
+}
+
+function Answer({ answer, stages = [], restored = false }) {
   const [showSources, setShowSources] = useState(false);
   const [showWorking, setShowWorking] = useState(false);
   const d = answer.diagnostics || {};
@@ -582,7 +761,7 @@ function Answer({ answer, restored = false }) {
             were empty while it was pending, now carrying what actually
             happened. "Show working" below goes a level deeper into the
             retrieval ranking. */}
-        <Pipeline answer={answer} />
+        <Pipeline answer={answer} stages={stages} />
 
         {showWorking ? <Working answer={answer} /> : null}
       </div>
@@ -671,7 +850,7 @@ function ScoreBar({ row }) {
  * is the more important half: a memory system you cannot see deciding is one
  * you cannot trust. Every memory shown here is answerable the moment it lands.
  */
-function Learned({ transcript }) {
+function Learned({ transcript, stages = [] }) {
   const memories = (transcript.memories || []).filter((m) => m.status !== "REJECTED");
   const rejected = (transcript.memories || []).filter((m) => m.status === "REJECTED");
   const extraction = transcript.extraction || {};
@@ -711,6 +890,8 @@ function Learned({ transcript }) {
             stored as fact.
           </div>
         ) : null}
+
+        <Pipeline stages={stages} />
 
         <div className="answer__actions">
           <span className="answer__meta mono">

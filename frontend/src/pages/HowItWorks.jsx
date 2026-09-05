@@ -538,6 +538,115 @@ export default function HowItWorks({ status }) {
         </div>
       </section>
 
+      {/* --------------------------------- 6. would a vector database help? */}
+      <section className="how">
+        <h2 className="how__h">6 &middot; Would a vector database help?</h2>
+        <p className="how__p">
+          It is the first question anyone asks about a retrieval system, so it is worth
+          answering with measurements rather than an opinion. Kivi is already
+          retrieval-augmented generation &mdash; a question retrieves memories, the
+          memories are handed to the engine, the engine writes from them and nothing
+          else. What FAISS or a hosted vector database would replace is the <em>index</em>:
+          how the nearest vectors are found, not how well they answer.
+        </p>
+
+        <p className="how__p">
+          Kivi scans every vector on every question. No index, no shortlist, no
+          approximation. Here is what that costs on this installation:
+        </p>
+
+        <Figure
+          caption="An approximate index is a trade: some recall for a lot of speed. At this size there is no speed left to buy, and the scan is already exact."
+          viewBox="0 0 760 168"
+          height={168}
+        >
+          <text x={8} y={14} className="dg__s dg__s--left">
+            SEARCHING 402 MEMORIES &times; 512 DIMENSIONS
+          </text>
+
+          <Box x={8} y={26} w={210} h={40} title="What Kivi does now" sub="exact scan, plain Python" />
+          <rect x={228} y={36} width={430} height={20} rx={3} className="dg__fill-warn" />
+          <text x={668} y={51} className="dg__l dg__l--left">123 ms</text>
+
+          <Box x={8} y={80} w={210} h={40} title="The same scan, vectorised" sub="one numpy matmul" tone="good" />
+          <rect x={228} y={90} width={4} height={20} rx={2} className="dg__fill-good" />
+          <text x={240} y={105} className="dg__l dg__l--left">0.13 ms &mdash; still exact, still every vector</text>
+
+          <Box x={8} y={134} w={210} h={26} title="An approximate index" tone="muted" />
+          <text x={240} y={151} className="dg__l dg__l--left">
+            starts paying off somewhere around 100,000 vectors
+          </text>
+        </Figure>
+
+        <p className="how__p">
+          So the honest answer is <b>no, and not for the reason people expect</b>. The exact
+          search over the whole corpus is already fast enough that an approximate index has
+          nothing to offer, and one line of vectorised arithmetic beats the current loop by
+          three orders of magnitude without giving up exactness. FAISS solves a problem that
+          begins a few hundred thousand memories from here &mdash; decades of dictation.
+        </p>
+
+        <p className="how__p">
+          The scale it sits at matters more than the ratio. A question against a hosted model
+          takes about ten seconds end to end, of which the vector scan is roughly one percent.
+          Replacing it saves a hundredth of the wait. And because an approximate index buys
+          speed by giving up recall, it could only move the number that actually matters &mdash;
+          how often the right memory is retrieved &mdash; in the wrong direction.
+        </p>
+
+        <h3 className="how__h3">What would help is the embedding, not the index</h3>
+        <p className="how__p">
+          The blind spot is not <em>finding</em> the nearest vector. It is that nearest is
+          measured over hashed words, word pairs and character runs, so two sentences that
+          mean the same thing in different vocabulary are not near each other at all. Both
+          failures in the evaluation are exactly that: a question phrased with none of the
+          words the memory used. A real sentence-embedding model closes that gap, and no index
+          ever will.
+        </p>
+
+        <div className="how__grid" style={{ marginTop: 16 }}>
+          <div className="how__col">
+            <div className="how__col-head how__col-head--yes">Why it is not done here</div>
+            <ul className="how__list">
+              <li>
+                A sentence-embedding model is a download. The current promise is that this
+                repository clones, runs and indexes five hundred dictations offline in seconds,
+                with nothing fetched.
+              </li>
+              <li>
+                Meaning is 20% of what decides the ranking on the questions asked so far.
+                Improving it improves a fifth of the score.
+              </li>
+              <li>
+                Naming a person is the largest signal and the crudest implementation &mdash;
+                capitalisation and a substring match. That is the cheaper fix and the bigger
+                one.
+              </li>
+            </ul>
+          </div>
+          <div className="how__col">
+            <div className="how__col-head how__col-head--no">What would change at scale</div>
+            <ul className="how__list">
+              <li>
+                Around 10,000 memories the scan wants vectorising. That is a dependency, not a
+                database.
+              </li>
+              <li>
+                Rebuilding the BM25 index per question becomes the bottleneck before vector
+                search does &mdash; it is the same full pass, over the same corpus, with worse
+                constants.
+              </li>
+              <li>
+                Past a few hundred thousand, an approximate index earns its place. By then the
+                interesting question is sharding by user, which SQLite would also have stopped
+                answering well.
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+
     </div>
   );
 }
