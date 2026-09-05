@@ -129,6 +129,9 @@ export const api = {
 
   // ---- transcripts -----------------------------------------------------
   feed: (params) => request(`/transcripts/feed${qs(params)}`),
+  // One real dictation, chosen by the backend for how much of the pipeline it
+  // can demonstrate, walked from raw audio text to a stored vector.
+  example: () => request("/transcripts/example"),
   transcript: (id) => request(`/transcripts/${id}`),
   applications: () => request("/transcripts/applications"),
   // `process: false` stores the dictation and returns immediately, so the UI

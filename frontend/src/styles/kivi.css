@@ -1543,60 +1543,171 @@ code {
 
 .pipe__total { color: var(--green); }
 
-/* ---------------------------------------------------- the pipeline: phases */
-/* Nine numbered rows read as nine unrelated things. Three phases, each with
-   its own steps indented under it, read as one route. */
-.pipe__phases {
-  padding: 4px 14px 12px;
+/* ----------------------------------------------------- the pipeline: phases */
+/* Three cards, not nine rows. Nine steps in a list is nine things to read and
+   no shape; understand -> search -> answer is one sentence, and each card
+   carries the single value that phase produced. */
+.pf {
   display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px 14px 4px;
+}
+
+@media (max-width: 700px) {
+  .pf { grid-template-columns: minmax(0, 1fr); }
+}
+
+.pf__card {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
   gap: 2px;
+  min-height: 92px;
+  padding: 11px 13px 12px;
+  border: 1px solid var(--edge-inner);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+  transition:
+    border-color var(--dur-micro) var(--ease),
+    background var(--dur-micro) var(--ease);
 }
 
-.ph {
-  padding: 9px 0 4px;
-  border-top: 1px solid var(--line);
+.pf__card:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: var(--line-strong);
 }
 
-.ph:first-child {
-  border-top: 0;
-  padding-top: 4px;
+.pf__card:disabled { cursor: default; opacity: 0.45; }
+
+/* The chevron between cards, drawn on the card rather than between them so it
+   disappears with the card when the row wraps to one column. */
+.pf__card + .pf__card::before {
+  content: "";
+  position: absolute;
+  left: -6px;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  margin-top: -3px;
+  border-top: 1px solid var(--edge-inner);
+  border-right: 1px solid var(--edge-inner);
+  transform: rotate(45deg);
 }
 
-.ph__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 2px;
+@media (max-width: 700px) {
+  .pf__card + .pf__card::before { display: none; }
 }
 
-.ph__label {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.08em;
-  text-transform: lowercase;
+.pf__n {
+  font-size: 10px;
+  color: var(--text-3);
+}
+
+.pf__verb {
+  font-size: 11px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
   color: var(--text-2);
+  font-family: var(--font-mono);
 }
 
-.ph__ms {
+/* The one value the phase produced. It is the reason the card exists, so it
+   gets the size. */
+.pf__headline {
+  align-self: end;
+  font-size: 19px;
+  line-height: 1.15;
+  font-weight: 500;
+  color: var(--text-0);
+  overflow-wrap: anywhere;
+  margin-top: 3px;
+}
+
+.pf__foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 7px;
   font-size: 10.5px;
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
-  flex: none;
 }
 
-.ph--busy .ph__label { color: var(--amber); }
-.ph--busy .ph__ms { color: var(--amber); }
+.pf__pct { color: var(--text-2); }
 
+/* Each card's share of the total wait, along its bottom edge. Equal-width
+   cards keep the row readable - sizing them by duration would make the first
+   two slivers - and this keeps the proportion honest anyway. */
+.pf__fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--green);
+  transform-origin: left;
+  transition: transform var(--dur-panel) var(--ease);
+}
+
+.pf__card--open {
+  border-color: var(--green-line);
+  background: var(--surface-3);
+}
+
+.pf__card--open .pf__headline { color: var(--green); }
+
+.pf__card--busy {
+  border-color: var(--amber);
+}
+
+.pf__card--busy .pf__verb { color: var(--amber); }
+
+.pf__working { color: var(--amber); font-size: 16px; }
+
+/* Three dots that fill in, so a card that is waiting on a model is obviously
+   waiting rather than obviously broken. */
+.pf__dots::after {
+  content: "";
+  animation: pf-dots 1.4s steps(4, end) infinite;
+}
+
+@keyframes pf-dots {
+  0% { content: ""; }
+  25% { content: "."; }
+  50% { content: ".."; }
+  75% { content: "..."; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pf__dots::after { animation: none; content: "..."; }
+  .pf__fill { transition: none; }
+}
+
+.pf__note {
+  margin: 8px 14px 0;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.pf__note b { color: var(--text-0); font-weight: 500; }
+.pf__note i { font-style: normal; color: var(--green); }
+
+/* ---- the steps inside one phase ----------------------------------------- */
 .ph__steps {
   list-style: none;
-  margin: 0;
-  padding: 0;
+  margin: 10px 14px 12px;
+  padding: 11px 0 0;
+  border-top: 1px solid var(--line);
   display: grid;
   gap: 1px;
 }
 
-/* ---- one step ----------------------------------------------------------- */
 .st {
   display: grid;
   grid-template-columns: 15px minmax(0, 1fr);
@@ -1699,10 +1810,7 @@ code {
 }
 
 @media (max-width: 640px) {
-  .st__fact {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0;
-  }
+  .st__fact { grid-template-columns: minmax(0, 1fr); gap: 0; }
 }
 
 .st__more {
@@ -1742,10 +1850,7 @@ code {
 }
 
 /* Wide tables scroll inside their own box rather than widening the answer. */
-.st__table-scroll {
-  overflow-x: auto;
-  min-width: 0;
-}
+.st__table-scroll { overflow-x: auto; min-width: 0; }
 
 .st__table {
   border-collapse: collapse;
@@ -1782,93 +1887,248 @@ code {
   color: var(--text-0);
 }
 
-/* ---- collapsed: one line, and a way in ---------------------------------- */
-.pipe__open {
+/* --------------------------------------------- how it works: worked example */
+/* A vertical walk through one real record. Numbered like the page's sections,
+   because it is the same story told once with actual values in it. */
+.ex {
+  border: 1px solid var(--edge);
+  border-radius: var(--r-lg);
+  background: var(--surface-1);
+  overflow: hidden;
+  margin-bottom: 22px;
+}
+
+.ex--loading {
+  padding: 26px 18px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.ex__head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 14px;
-  width: 100%;
-  padding: 9px 14px 12px;
-  border: 0;
-  background: none;
-  text-align: left;
-  cursor: pointer;
-  color: inherit;
-  font-family: inherit;
+  gap: 12px;
+  padding: 11px 18px;
+  background: var(--stage);
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--text-2);
 }
 
-.pipe__gist {
+.ex__meta { color: var(--text-3); }
+
+.ex__step {
+  padding: 15px 18px 16px;
+  border-top: 1px solid var(--line);
+}
+
+.ex__step:first-of-type { border-top: 0; }
+
+.ex__step-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+
+.ex__n {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border-radius: var(--r-pill);
+  background: var(--green-marker);
+  color: var(--green);
+  font-size: 10.5px;
+  line-height: 1;
+}
+
+.ex__title {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-0);
+}
+
+.ex__tag {
+  margin-left: auto;
+  padding: 2px 8px;
+  border: 1px solid var(--green-line);
+  border-radius: var(--r-pill);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--green);
+}
+
+.ex__body { padding-left: 30px; }
+
+/* The two passes of the same sentence, set apart so the difference is the
+   thing you look at. */
+.ex__said {
+  margin: 0;
+  padding: 10px 13px;
+  border-left: 2px solid var(--green-line);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  background: var(--stage);
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--text-0);
+}
+
+.ex__said--raw {
+  border-left-color: var(--edge-inner);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--text-1);
+}
+
+.ex__diffs {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.ex__diffs li {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  font-size: 12.5px;
+  flex-wrap: wrap;
+}
+
+.ex__diff-kind {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+  min-width: 52px;
+}
+
+.ex__was {
+  color: var(--text-3);
+  text-decoration: line-through;
+  text-decoration-color: var(--rose);
+}
+
+.ex__arrow { color: var(--text-3); }
+.ex__now { color: var(--green); }
+
+.ex__note {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-2);
+  max-width: 68ch;
+}
+
+/* The extracted record, as fields rather than as prose - it is a row in a
+   table, and it should look like one. */
+.ex__fields {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 9px 18px;
+}
+
+.ex__fields dt {
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.ex__fields dd {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--text-0);
+  overflow-wrap: anywhere;
+}
+
+.ex__conf {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.ex__conf-label {
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.ex__conf-track {
+  flex: 1;
+  max-width: 240px;
+  height: 5px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.ex__conf-fill {
+  display: block;
+  height: 100%;
+  background: var(--green);
+}
+
+/* The correction: what was believed, and what replaced it. */
+.ex__old,
+.ex__new {
+  margin: 0;
+  padding: 9px 13px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  border-radius: var(--r-sm);
+}
+
+.ex__old {
+  background: var(--rose-soft);
+  color: var(--text-2);
+  text-decoration: line-through;
+  text-decoration-color: rgba(217, 133, 112, 0.5);
+}
+
+.ex__new {
+  margin-top: 6px;
+  background: var(--green-soft);
+  color: var(--text-0);
+}
+
+.ex__vec {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
   font-size: 12px;
   color: var(--text-2);
-  min-width: 0;
 }
 
-.pipe__open:hover .pipe__gist { color: var(--text-1); }
-
-.pipe__open-cue {
-  font-size: 10.5px;
-  color: var(--text-3);
-  flex: none;
-  border-bottom: 1px dotted var(--line-strong);
-}
-
-.pipe__open:hover .pipe__open-cue { color: var(--green); }
-
-.pipe__close {
-  justify-self: start;
-  margin-top: 8px;
-  padding: 0;
-  border: 0;
-  background: none;
-  font-size: 10.5px;
-  color: var(--text-3);
-  cursor: pointer;
-  border-bottom: 1px dotted var(--line-strong);
-}
-
-.pipe__close:hover { color: var(--text-0); }
-
-/* ---- where the time went ------------------------------------------------ */
-/* One stacked bar of a single total. The phases below are its legend, so only
-   the segment that dominates gets a label - and on a real question one segment
-   is most of the bar. */
-.pipe__bar {
-  padding: 8px 14px 0;
-}
-
-.pipe__bar-track {
-  display: flex;
-  gap: 2px;
-  height: 6px;
-  border-radius: var(--r-pill);
-  overflow: hidden;
-  background: var(--surface-3);
-}
-
-.pipe__seg {
-  display: block;
-  min-width: 2px;
-  background: var(--green-deep);
-  border-radius: 1px;
-}
-
-.pipe__seg--slow { background: var(--green); }
-
-.pipe__bar-note {
-  margin-top: 6px;
-  font-size: 11.5px;
-  color: var(--text-2);
-}
-
-.pipe__bar-note b {
-  color: var(--text-0);
-  font-weight: 500;
-}
-
-.pipe__bar-note i {
-  font-style: normal;
+.ex__vec b {
   color: var(--green);
+  font-weight: 400;
+  font-size: 14px;
+}
+
+.ex__vec-model { color: var(--text-3); font-size: 11px; }
+
+.ex__coords {
+  margin-top: 9px;
+  padding: 9px 12px;
+  border-radius: var(--r-sm);
+  background: var(--stage);
+  font-size: 11.5px;
+  color: var(--text-1);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 620px) {
+  .ex__body { padding-left: 0; }
 }
 
 /* --------------------------------------------------- how it works: to top */

@@ -156,12 +156,13 @@ function SignalTable() {
  */
 const SECTIONS = [
   ["ingest", "1", "A dictation becomes memory"],
-  ["reconcile", "2", "Deciding whether Kivi already knew it"],
-  ["query", "3", "A question becomes an answer"],
-  ["storage", "4", "What is actually stored"],
-  ["algorithms", "5", "The algorithms, and why these ones"],
-  ["vectordb", "6", "Would a vector database help?"],
-  ["advanced", "7", "Techniques not used, and why"],
+  ["example", "2", "One real dictation, followed through"],
+  ["reconcile", "3", "Deciding whether Kivi already knew it"],
+  ["query", "4", "A question becomes an answer"],
+  ["storage", "5", "What is actually stored"],
+  ["algorithms", "6", "The algorithms, and why these ones"],
+  ["vectordb", "7", "Would a vector database help?"],
+  ["advanced", "8", "Techniques not used, and why"],
 ];
 
 function Index() {
@@ -229,6 +230,164 @@ function ToTop() {
   );
 }
 
+/**
+ * One real dictation, followed all the way to a stored memory.
+ *
+ * Everything else on this page describes the pipeline. This is one record out
+ * of whatever corpus is actually loaded, fetched live - not a fixture and not a
+ * screenshot - so it changes when the data does and cannot quietly go stale.
+ *
+ * The backend chooses which record, scoring candidates by how much of the
+ * system one of them can demonstrate: a dictation that corrected an earlier
+ * belief beats one that only ever created something. See
+ * `/api/transcripts/example`.
+ */
+function WorkedExample() {
+  const [data, setData] = useState(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .example()
+      .then((d) => alive && setData(d))
+      .catch(() => alive && setFailed(true));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (failed) return <p className="how__p">The example could not be loaded.</p>;
+  if (!data) return <div className="ex ex--loading mono">loading a real dictation…</div>;
+
+  const { transcript: t, heard_differently: diffs = [], extraction = {}, memories = [] } = data;
+  const memory = memories[0];
+  const when = (t.timestamp || "").slice(0, 16).replace("T", " ");
+
+  return (
+    <div className="ex">
+      <div className="ex__head">
+        <span className="mono">dictation #{t.id}</span>
+        <span className="mono ex__meta">
+          {t.application} · {when}
+        </span>
+      </div>
+
+      <Step n="1" title="What the recogniser heard">
+        <p className="ex__said ex__said--raw">{t.raw_asr}</p>
+        {diffs.length ? (
+          <ul className="ex__diffs">
+            {diffs.map((d, i) => (
+              <li key={i}>
+                <span className="ex__diff-kind mono">{d.kind}</span>
+                <span className="ex__was">{d.heard || "—"}</span>
+                <span className="ex__arrow" aria-hidden="true">→</span>
+                <span className="ex__now">{d.written || "removed"}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="ex__note">Formatting changed nothing on this one.</p>
+        )}
+      </Step>
+
+      <Step n="2" title="What was written down, and kept forever">
+        <p className="ex__said">{t.formatted_text}</p>
+        <p className="ex__note">
+          Both passes are stored. Every answer traces back to this line, so nothing later in
+          the pipeline is allowed to alter it.
+        </p>
+      </Step>
+
+      <Step n="3" title="What was worth keeping" tag={extraction.decision}>
+        {memory ? (
+          <>
+            <dl className="ex__fields">
+              {[
+                ["type", memory.type],
+                ["about", memory.subject],
+                ["attribute", memory.attribute],
+                ["value", memory.value],
+                ["entities", (memory.entities || []).join(", ")],
+                ["tags", (memory.tags || []).join(", ")],
+              ]
+                .filter(([, v]) => v)
+                .map(([k, v]) => (
+                  <div key={k}>
+                    <dt>{k}</dt>
+                    <dd className="mono">{v}</dd>
+                  </div>
+                ))}
+            </dl>
+            <div className="ex__conf">
+              <span className="ex__conf-label">confidence</span>
+              <span className="ex__conf-track">
+                <span
+                  className="ex__conf-fill"
+                  style={{ width: `${Math.round((memory.confidence || 0) * 100)}%` }}
+                />
+              </span>
+              <span className="mono">{(memory.confidence ?? 0).toFixed(2)}</span>
+            </div>
+            <p className="ex__note">
+              Below the threshold this row would still have been written, as REJECTED, and
+              never retrieved. Nothing is dropped silently.
+            </p>
+          </>
+        ) : (
+          <p className="ex__note">{extraction.rationale}</p>
+        )}
+      </Step>
+
+      {memory?.replaced ? (
+        <Step n="4" title="What it replaced" tag="SUPERSEDED">
+          <p className="ex__old">{memory.replaced.content}</p>
+          <p className="ex__new">{memory.content}</p>
+          <p className="ex__note">
+            The old row is still there, at 45% of its score, pointing at the one that
+            replaced it. That is why <em>what did I say before?</em> still has an answer.
+          </p>
+        </Step>
+      ) : null}
+
+      {memory ? (
+        <Step n={memory.replaced ? "5" : "4"} title="How it is findable">
+          <div className="ex__vec">
+            <span>
+              <b className="mono">{memory.vector.dim}</b> dimensions
+            </span>
+            <span>
+              <b className="mono">{memory.vector.nonzero}</b> non-zero
+            </span>
+            <span className="mono ex__vec-model">{memory.embedding_model}</span>
+          </div>
+          <div className="ex__coords mono">
+            [{memory.vector.sample.map((v) => v.toFixed(3)).join(", ")}, …]
+          </div>
+          <p className="ex__note">
+            Hashed from the words, word pairs and four-character runs of the memory above.
+            A question is hashed the same way, and the two are compared with one dot
+            product.
+          </p>
+        </Step>
+      ) : null}
+    </div>
+  );
+}
+
+function Step({ n, title, tag, children }) {
+  return (
+    <section className="ex__step">
+      <div className="ex__step-head">
+        <span className="ex__n mono">{n}</span>
+        <h4 className="ex__title">{title}</h4>
+        {tag ? <span className="ex__tag mono">{tag}</span> : null}
+      </div>
+      <div className="ex__body">{children}</div>
+    </section>
+  );
+}
+
 /* ----------------------------------------------------------------- the page */
 
 export default function HowItWorks({ status }) {
@@ -252,9 +411,8 @@ export default function HowItWorks({ status }) {
       <section className="how" id="ingest">
         <h2 className="how__h">1 · A dictation becomes memory</h2>
         <p className="how__p">
-          Every dictation is stored first, exactly as it was said, and nothing that happens
-          afterwards can change it. Extraction then decides whether anything in it is worth
-          keeping — and most of the time for filler, it decides no.
+          Every dictation is stored exactly as it was said, and nothing afterwards can change it.
+          Extraction then decides whether any of it is worth keeping &mdash; usually not.
         </p>
 
         <Figure
@@ -287,13 +445,24 @@ export default function HowItWorks({ status }) {
         </Figure>
       </section>
 
-      {/* ------------------------------------------------ 2. reconciliation */}
-      <section className="how" id="reconcile">
-        <h2 className="how__h">2 · Deciding whether Kivi already knew it</h2>
+      {/* ------------------------------------------- 2. the worked example */}
+      <section className="how" id="example">
+        <h2 className="how__h">2 &middot; One real dictation, followed through</h2>
         <p className="how__p">
-          A new memory is never written blindly. Kivi first looks for what it already believes
-          about the same subject and attribute — <em>the Atlas review's time</em>, <em>who leads
-          Project Forge</em> — and then decides which of four things is happening.
+          The diagram above is the shape. This is one actual record from the loaded corpus,
+          read live, from the words a recogniser produced to the vector the memory is now
+          findable by.
+        </p>
+        <WorkedExample />
+      </section>
+
+      {/* ------------------------------------------------ 3. reconciliation */}
+      <section className="how" id="reconcile">
+        <h2 className="how__h">3 · Deciding whether Kivi already knew it</h2>
+        <p className="how__p">
+          Kivi first looks up what it already believes about the same subject and attribute
+          &mdash; <em>the Atlas review&rsquo;s time</em> &mdash; then decides which of four things
+          is happening.
         </p>
 
         <Figure
@@ -337,11 +506,11 @@ export default function HowItWorks({ status }) {
 
       {/* ------------------------------------------------ 3. query */}
       <section className="how" id="query">
-        <h2 className="how__h">3 · A question becomes an answer</h2>
+        <h2 className="how__h">4 · A question becomes an answer</h2>
         <p className="how__p">
-          Retrieval narrows five hundred dictations to a handful of memories. The step that
-          matters most is the one after it: if nothing retrieved actually mentions what was
-          asked about, Kivi refuses instead of answering from the closest thing it found.
+          Retrieval narrows five hundred dictations to a handful. The step that matters most is
+          the last: if nothing retrieved actually mentions what was asked about, Kivi refuses
+          rather than answering from the closest thing it found.
         </p>
 
         <Figure
@@ -371,11 +540,10 @@ export default function HowItWorks({ status }) {
 
       {/* ------------------------------------------------ 4. data model */}
       <section className="how" id="storage">
-        <h2 className="how__h">4 · What is actually stored</h2>
+        <h2 className="how__h">5 · What is actually stored</h2>
         <p className="how__p">
-          Four tables carry the whole system. The arrows are the reason any answer can be traced
-          back to the words that produced it — and the reason deleting a dictation cannot quietly
-          take its audit trail with it.
+          Four tables. The arrows are why any answer can be traced back to the words that produced
+          it &mdash; and why deleting a dictation cannot quietly take its audit trail with it.
         </p>
 
         <Figure
@@ -412,7 +580,7 @@ export default function HowItWorks({ status }) {
 
       {/* ------------------------------------------------ 5. the algorithms */}
       <section className="how" id="algorithms">
-        <h2 className="how__h">5 &middot; The algorithms, and why these ones</h2>
+        <h2 className="how__h">6 &middot; The algorithms, and why these ones</h2>
         <p className="how__p">
           Three pieces do the work: turning text into something comparable, deciding which
           memories a question is about, and deciding whether to answer at all.
@@ -420,10 +588,8 @@ export default function HowItWorks({ status }) {
 
         <h3 className="how__h3">Embeddings &mdash; hashed n-grams, no model</h3>
         <p className="how__p">
-          A memory&rsquo;s text is cut into words, word pairs and four-character runs. Each piece
-          is hashed into one of 512 buckets, weighted by how rare it is, and the result is
-          normalised. No API, no download, no GPU &mdash; and the same text always lands in the
-          same place.
+          A memory&rsquo;s text is cut into words, word pairs and four-character runs, hashed into
+          512 buckets, weighted by rarity and normalised. No API, no download, no GPU.
         </p>
 
         <Figure
@@ -451,10 +617,8 @@ export default function HowItWorks({ status }) {
         </Figure>
 
         <p className="how__p">
-          The hash is <code>blake2b</code> rather than the language&rsquo;s built-in one, which is
-          seeded differently on every run &mdash; the same sentence would land somewhere new after
-          a restart and every stored vector would quietly rot. This way a reviewer on another
-          machine gets identical numbers.
+          The hash is <code>blake2b</code>, not the language&rsquo;s built-in one: that is salted
+          per process, so every stored vector would mean something different after a restart.
         </p>
 
         <h3 className="how__h3">
@@ -501,29 +665,25 @@ export default function HowItWorks({ status }) {
         </Figure>
 
         <p className="how__p">
-          The weights are the visible part and the smaller part. Naming a person adds up to
-          0.40 outright; a typical meaning score of 0.4 contributes 0.55 &times; 0.4, about
-          0.22. Rather than argue that from the source, every question stores its full ranking
-          per signal, so the system can be asked directly:
+          The weights are the visible part and the smaller part. Naming a person adds up to 0.40
+          outright; a typical meaning score of 0.4 contributes about 0.22. Rather than argue that,
+          the system can be asked:
         </p>
 
         <SignalTable />
 
         <p className="how__p">
-          Meaning-matching finds a paraphrase but blurs proper nouns; word-matching is what
-          rescues a rare name like <em>Rahul</em>, which meaning-matching treats as one dimension
-          among five hundred. Recency settles ties. But on the questions this installation has
-          actually been asked, the structural signals decide more of the ranking than the
-          weighted ones do &mdash; which is a fact about these questions, not a law: a corpus of
-          questions that all name a person will find the entity bonus dominant, because it is.
+          Meaning-matching finds a paraphrase but blurs proper nouns; word-matching rescues a rare
+          name like <em>Rahul</em>. On the questions actually asked here, though, the structural
+          signals decide more of the ranking than the weighted ones &mdash; a fact about these
+          questions, not a law.
         </p>
 
         <h3 className="how__h3">Refusing &mdash; a vocabulary check, deliberately not a judgement</h3>
         <p className="how__p">
           Word-matching always returns <em>something</em>. Ask for a bank account number and it
-          will happily hand back whichever dictation shares the most ordinary words. So before any
-          answer is written, Kivi checks a separate question: does the topic of the question appear
-          anywhere in what was retrieved?
+          hands back whichever dictation shares the most ordinary words. So before any answer is
+          written, Kivi asks separately: does the topic appear in what was retrieved?
         </p>
 
         <Figure
@@ -574,18 +734,15 @@ export default function HowItWorks({ status }) {
         </Figure>
 
         <p className="how__p">
-          The split is the point. If a model also decided whether an answer was supported, then
-          &ldquo;Kivi does not invent answers&rdquo; would be a claim about that model on that day.
-          Because the check is ordinary code, the guarantee holds whichever engine is configured
-          &mdash; and it is why the offline engine and a hosted model produce the same refusals
-          from the same history.
+          The split is the point. If a model decided whether an answer was supported, &ldquo;Kivi
+          does not invent answers&rdquo; would be a claim about that model on that day. The check
+          is ordinary code, so it holds whichever engine is configured.
         </p>
 
         <p className="how__p">
-          What a model does change is how much gets learned in the first place. On dictations
-          phrased in a voice the rules were never tuned on, extraction recall goes from 62% to
-          97%. Retrieval and embedding are identical in both paths, so that entire gap is
-          extraction &mdash; which is the honest answer to what the model is for.
+          What a model changes is how much gets learned. On phrasing the rules were never tuned
+          on, extraction recall goes from 62% to 97%. Retrieval and embedding are identical either
+          way, so the whole gap is extraction.
         </p>
 
         <div className="how__grid" style={{ marginTop: 16 }}>
@@ -629,14 +786,11 @@ export default function HowItWorks({ status }) {
 
       {/* --------------------------------- 6. would a vector database help? */}
       <section className="how" id="vectordb">
-        <h2 className="how__h">6 &middot; Would a vector database help?</h2>
+        <h2 className="how__h">7 &middot; Would a vector database help?</h2>
         <p className="how__p">
-          It is the first question anyone asks about a retrieval system, so it is worth
-          answering with measurements rather than an opinion. Kivi is already
-          retrieval-augmented generation &mdash; a question retrieves memories, the
-          memories are handed to the engine, the engine writes from them and nothing
-          else. What FAISS or a hosted vector database would replace is the <em>index</em>:
-          how the nearest vectors are found, not how well they answer.
+          The first question anyone asks, so here is the measurement rather than an opinion. Kivi
+          is already retrieval-augmented generation. What FAISS would replace is the
+          <em>index</em> &mdash; how the nearest vectors are found, not how well they answer.
         </p>
 
         <p className="how__p">
@@ -668,29 +822,22 @@ export default function HowItWorks({ status }) {
         </Figure>
 
         <p className="how__p">
-          So the honest answer is <b>no, and not for the reason people expect</b>. The exact
-          search over the whole corpus is already fast enough that an approximate index has
-          nothing to offer, and one line of vectorised arithmetic beats the current loop by
-          three orders of magnitude without giving up exactness. FAISS solves a problem that
-          begins a few hundred thousand memories from here &mdash; decades of dictation.
+          So: <b>no, and not for the reason people expect</b>. The exact search is already fast
+          enough that an approximate index has nothing to offer, and one line of vectorised
+          arithmetic beats the current loop a thousandfold without giving up exactness.
         </p>
 
         <p className="how__p">
-          The scale it sits at matters more than the ratio. A question against a hosted model
-          takes about ten seconds end to end, of which the vector scan is roughly one percent.
-          Replacing it saves a hundredth of the wait. And because an approximate index buys
-          speed by giving up recall, it could only move the number that actually matters &mdash;
-          how often the right memory is retrieved &mdash; in the wrong direction.
+          Scale matters more than the ratio: the vector scan is about 1% of a ten-second question.
+          And an approximate index buys speed by giving up recall &mdash; the one number that
+          actually matters.
         </p>
 
         <h3 className="how__h3">What would help is the embedding, not the index</h3>
         <p className="how__p">
           The blind spot is not <em>finding</em> the nearest vector. It is that nearest is
-          measured over hashed words, word pairs and character runs, so two sentences that
-          mean the same thing in different vocabulary are not near each other at all. Both
-          failures in the evaluation are exactly that: a question phrased with none of the
-          words the memory used. A real sentence-embedding model closes that gap, and no index
-          ever will.
+          measured over hashed words, so two sentences meaning the same thing in different
+          vocabulary are not near each other. Both evaluation failures are exactly that.
         </p>
 
         <div className="how__grid" style={{ marginTop: 16 }}>
@@ -738,13 +885,11 @@ export default function HowItWorks({ status }) {
 
       {/* --------------------------------------- 7. the advanced techniques */}
       <section className="how" id="advanced">
-        <h2 className="how__h">7 &middot; Techniques not used, and why</h2>
+        <h2 className="how__h">8 &middot; Techniques not used, and why</h2>
         <p className="how__p">
-          Retrieval has a well-known toolbox above what is built here &mdash; fusion,
-          reranking, learned embeddings, query rewriting, graph memory. Leaving them out is
-          a decision, and a decision is only defensible if you can say what it cost. Each of
-          these was measured against this system rather than judged in the abstract, and two
-          of them would help.
+          Fusion, reranking, learned embeddings, query rewriting, graph memory. Leaving them out
+          is a decision, and a decision is only defensible if you can say what it cost. Each was
+          measured against this system. Two would help.
         </p>
 
         <div className="adv">
@@ -760,15 +905,12 @@ export default function HowItWorks({ status }) {
               <em>combine rankings by position, not score</em>
             </span>
             <span className="adv__what">
-              Merging retrievers whose scores are on scales that cannot be compared &mdash;
-              a cosine of 0.42 against a BM25 of 11.7. RRF ignores the numbers and uses only
-              the rank each retriever gave.
+              Merging retrievers whose scores cannot be compared &mdash; a cosine of 0.42 against a 
+              BM25 of 11.7. RRF uses only the rank each gave.
             </span>
             <span className="adv__verdict adv__verdict--no">
-              <b>Solves a problem this code does not have.</b> Both signals are already
-              divided by the best score in the same question, so they arrive on a common
-              0&ndash;1 scale. RRF would earn its place the moment a third retriever with an
-              incomparable score is added &mdash; not before.
+              <b>Solves a problem this code does not have.</b> Both signals are already divided by 
+              the best score in the same question, so they arrive on a common 0&ndash;1 scale.
             </span>
           </div>
 
@@ -778,17 +920,13 @@ export default function HowItWorks({ status }) {
               <em>re-score the shortlist, question and memory read together</em>
             </span>
             <span className="adv__what">
-              A first pass retrieves generously; a slower model then reads each candidate
-              beside the question and reorders. It is the standard way to buy precision at
-              the top of a list.
+              A first pass retrieves generously; a slower model reads each candidate beside the 
+              question and reorders. The standard way to buy precision at the top.
             </span>
             <span className="adv__verdict adv__verdict--no">
-              <b>Nothing here for it to fix.</b> Reranking can only reorder what was
-              retrieved, and the right memory is in the retrieved set 96.4% of the time. In
-              the one evaluation case that misses a memory, the expected dictation was never
-              retrieved at all &mdash; a reranker would have reordered the same wrong eight.
-              No failure in the suite is a case of the right memory being retrieved and then
-              ranked below the cut.
+              <b>Nothing here for it to fix.</b> The right memory is in the retrieved set 96.4% of 
+              the time, and the one case that misses it never retrieved the dictation at all. No 
+              failure is &ldquo;retrieved, then ranked too low&rdquo;.
             </span>
           </div>
 
@@ -798,15 +936,13 @@ export default function HowItWorks({ status }) {
               <em>a trained model instead of hashed n-grams</em>
             </span>
             <span className="adv__what">
-              Maps sentences into a space where <em>the deadline slipped</em> and
-              <em> we are running late on delivery</em> land near each other despite sharing
-              no words. The gap hashing cannot close.
+              Maps sentences into a space where <em>the deadline slipped</em> and <em>we are running 
+              late</em> land near each other despite sharing no words.
             </span>
             <span className="adv__verdict adv__verdict--yes">
-              <b>The one that would move the number.</b> Both failures are paraphrases with
-              no shared vocabulary &mdash; exactly what this fixes. The cost is a model
-              download, which is the whole reason it is not here: today the repository clones
-              and indexes five hundred dictations offline, fetching nothing.
+              <b>The one that would move the number.</b> Both failures are paraphrases sharing no 
+              vocabulary &mdash; exactly what this fixes. The cost is a model download, which is why 
+              it is not here.
             </span>
           </div>
 
@@ -816,15 +952,13 @@ export default function HowItWorks({ status }) {
               <em>search with an invented answer, not the question</em>
             </span>
             <span className="adv__what">
-              A question and its answer are written differently, which is half of why
-              similarity misses. So have the model draft the answer it expects, embed
-              <em> that</em>, and search with it &mdash; matching a statement against
-              statements.
+              A question and its answer are written differently. So have the model draft the answer 
+              it expects, embed <em>that</em>, and search with it.
             </span>
             <span className="adv__verdict adv__verdict--maybe">
-              <b>Attacks the same gap without a download.</b> The catch is that it needs a
-              model on the question path, so it cannot run offline, and it adds a whole
-              round-trip to a question that already spends 98% of its time waiting for one.
+              <b>Attacks the same gap without a download.</b> But it needs a model on the question 
+              path, so it cannot run offline, and adds a round-trip to a question that already 
+              spends 98% of its time waiting for one.
             </span>
           </div>
 
@@ -834,15 +968,13 @@ export default function HowItWorks({ status }) {
               <em>knowing that Priya, Priya S. and she are one person</em>
             </span>
             <span className="adv__what">
-              Proper handling of aliases, nicknames, initials and pronouns, so a name in a
-              question reaches every memory about that person rather than the ones that spell
-              it the same way.
+              Aliases, nicknames, initials and pronouns, so a name in a question reaches every 
+              memory about that person &mdash; not only the ones spelling it the same way.
             </span>
             <span className="adv__verdict adv__verdict--yes">
-              <b>Largest signal, crudest implementation.</b> Naming someone is worth up to
-              +0.40 &mdash; among the biggest contributions in the measured table above
-              &mdash; and it is decided by capitalisation and a substring match. Two
-              colleagues sharing a first name merge; a nickname finds nothing.
+              <b>Largest signal, crudest implementation.</b> Naming someone is worth up to +0.40, 
+              and it is decided by capitalisation and a substring match. Two colleagues sharing a 
+              first name merge.
             </span>
           </div>
 
@@ -852,15 +984,13 @@ export default function HowItWorks({ status }) {
               <em>entities and relations, not just documents</em>
             </span>
             <span className="adv__what">
-              Store memories as a graph of entities joined by typed, time-stamped edges, so a
-              question can be answered by traversal &mdash; who reports to whom, what changed
-              when &mdash; rather than by similarity alone.
+              Memories as a graph of entities joined by typed, time-stamped edges, so a question can 
+              be answered by traversal rather than by similarity.
             </span>
             <span className="adv__verdict adv__verdict--maybe">
-              <b>Half-built already, and the natural direction.</b> Memories are linked by
-              supersession and by contradiction, and every one carries both when it happened
-              and when it was learned. What is missing is traversal at query time: nothing
-              currently walks those edges to answer.
+              <b>Half-built already, and the natural direction.</b> Memories are linked by 
+              supersession and contradiction, and each carries when it happened and when it was 
+              learned. What is missing is traversal at query time.
             </span>
           </div>
         </div>
@@ -872,26 +1002,20 @@ export default function HowItWorks({ status }) {
         </p>
 
         <p className="how__p">
-          <b>&ldquo;How do I prefer my meeting summaries?&rdquo;</b> Kivi answers with two
-          true preferences about summaries and misses the one the case asks for. The dictation
-          holding it was <em>never retrieved</em> &mdash; not retrieved and ranked low,
-          absent from the eight. Reranking those eight could not have reached it. An embedding
-          that put <em>bullet points</em> near <em>how do I prefer my summaries</em> could.
+          <b>&ldquo;How do I prefer my meeting summaries?&rdquo;</b> The dictation holding the
+          answer was <em>never retrieved</em> &mdash; absent from the eight, not ranked low within
+          them. Reranking could not have reached it; a better embedding could.
         </p>
 
         <p className="how__p">
-          <b>&ldquo;When is the Atlas pricing sign-off with Sarah?&rdquo;</b> Two live times
-          exist and Kivi confidently gives one. This is not a retrieval failure at all: both
-          were stored, and the conflict was never <em>detected</em>, because reconciliation
-          groups candidates by shared words and the two dictations phrase the same appointment
-          differently. The same weakness as the first &mdash; words standing in for meaning
-          &mdash; but at write time rather than at query time.
+          <b>&ldquo;When is the Atlas pricing sign-off with Sarah?&rdquo;</b> Not a retrieval
+          failure at all. Both times were stored; the conflict was never <em>detected</em>,
+          because reconciliation groups by shared words. Same weakness, at write time.
         </p>
 
         <p className="how__p">
-          So one failure is a query-side embedding problem and the other is a write-side one.
-          Fusion and reranking address neither. That is the whole argument for spending the
-          effort on what things mean rather than on how candidates are ordered.
+          One is a query-side embedding problem, the other a write-side one. Fusion and reranking
+          address neither.
         </p>
 
         <Figure
@@ -940,19 +1064,15 @@ export default function HowItWorks({ status }) {
         </Figure>
 
         <p className="how__p">
-          So the order of work is not the order the literature is usually read in. First
-          entity resolution, because it is the largest signal and the weakest code and it needs
-          no model at all. Then learned embeddings, accepting the download, because that is the
-          only thing that reaches the failures. Reranking and fusion come after that &mdash; not
-          because they are bad, but because on this corpus there is nothing left for them to
-          fix.
+          So the order of work is not the order the literature is read in. Entity resolution first
+          &mdash; largest signal, weakest code, no model needed. Then learned embeddings,
+          accepting the download. Reranking and fusion last, because on this corpus there is
+          nothing left for them to fix.
         </p>
 
         <p className="how__p how__p--last">
-          And none of it should be shipped on an argument. The way to know is the evaluation
-          already in this repository: 52 cases, failures shown first, run with{" "}
-          <code>python evaluation/run_eval.py</code>. Any of these is worth taking only if that
-          number moves.
+          And none of it on an argument. The way to know is the evaluation already here: 52 cases,
+          failures first, <code>python evaluation/run_eval.py</code>.
         </p>
       </section>
 

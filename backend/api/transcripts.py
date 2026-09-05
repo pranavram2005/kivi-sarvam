@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
+from difflib import SequenceMatcher
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
 from backend.config import get_settings
+from backend.database.db import row_to_dict, unpack_vector
 from backend.memory import extractor, store
 from backend.models.schemas import (
     TranscriptDay,
@@ -168,6 +170,157 @@ def transcript_feed(
 @router.get("/applications", response_model=list[str])
 def list_applications() -> list[str]:
     return store.applications(get_settings().default_user_id)
+
+
+@router.get("/example")
+def worked_example() -> dict[str, Any]:
+    """One real dictation, followed all the way through to a stored memory.
+
+    Everything else on the How it works screen describes the pipeline in the
+    abstract. This is one actual record from whatever corpus is loaded - not a
+    fixture, not a screenshot - walked end to end: the words as the recogniser
+    heard them, the words after formatting, what was extracted, whether it was
+    trusted, what it replaced, and the vector it is now findable by.
+
+    The example is chosen rather than pinned, because a reviewer runs this on
+    their own five hundred dictations and a hardcoded id would point at nothing.
+    Candidates are scored by how much of the system one record can demonstrate -
+    see `_example_score`.
+    """
+    settings = get_settings()
+    connection = store.get_connection()
+    user = settings.default_user_id
+
+    candidates = connection.execute(
+        """SELECT t.id, t.raw_asr, t.formatted_text,
+                  COUNT(m.id) AS memories,
+                  SUM(CASE WHEN old.id IS NOT NULL THEN 1 ELSE 0 END) AS corrections
+           FROM transcripts t
+           JOIN memories m ON m.source_transcript_id = t.id
+           LEFT JOIN memories old ON old.superseded_by_id = m.id
+           WHERE m.user_id = ?
+           GROUP BY t.id
+           ORDER BY corrections DESC, t.id DESC
+           LIMIT 60""",
+        (user,),
+    ).fetchall()
+    if not candidates:
+        raise HTTPException(status_code=404, detail="Nothing has been learned yet.")
+
+    best = max(candidates, key=_example_score)
+    transcript_id = int(best["id"])
+    transcript = store.get_transcript(transcript_id)
+    if transcript is None:
+        raise HTTPException(status_code=404, detail="The example transcript is missing.")
+
+    rows = connection.execute(
+        "SELECT * FROM memories WHERE source_transcript_id = ? ORDER BY id",
+        (transcript_id,),
+    ).fetchall()
+
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        memory = row_to_dict(row)
+        # `row_to_dict` drops the embedding on purpose - raw vectors have no
+        # business in an API payload - so the blob is read straight off the row
+        # here, and only its shape is reported.
+        vector = unpack_vector(row["embedding"])
+        replaced = connection.execute(
+            "SELECT id, content, created_at FROM memories WHERE superseded_by_id = ?",
+            (memory["id"],),
+        ).fetchone()
+        out.append(
+            {
+                "id": memory["id"],
+                "type": memory.get("type"),
+                "subject": memory.get("subject"),
+                "attribute": memory.get("attribute"),
+                "value": memory.get("value"),
+                "content": memory.get("content"),
+                "confidence": memory.get("confidence"),
+                "status": memory.get("status"),
+                "entities": memory.get("entities") or [],
+                "tags": memory.get("tags") or [],
+                "embedding_model": memory.get("embedding_model"),
+                "vector": {
+                    "dim": len(vector),
+                    "nonzero": sum(1 for v in vector if v),
+                    # A few real coordinates, so the vector is a thing on the
+                    # page rather than a claim about one.
+                    "sample": [round(v, 3) for v in vector[:8]],
+                },
+                "events": [
+                    {"event": e["event"], "reason": e["reason"]}
+                    for e in store.events_for(memory["id"])
+                ],
+                "replaced": (
+                    {
+                        "id": replaced["id"],
+                        "content": replaced["content"],
+                        "created_at": replaced["created_at"],
+                    }
+                    if replaced
+                    else None
+                ),
+            }
+        )
+
+    return {
+        "transcript": {
+            "id": transcript_id,
+            "raw_asr": transcript.get("raw_asr"),
+            "formatted_text": transcript.get("formatted_text"),
+            "application": transcript.get("application"),
+            "timestamp": transcript.get("timestamp"),
+        },
+        "heard_differently": _asr_differences(
+            transcript.get("raw_asr") or "", transcript.get("formatted_text") or ""
+        ),
+        "extraction": store.extraction_run_for(transcript_id),
+        "memories": out,
+    }
+
+
+def _example_score(row: Any) -> tuple[int, int, int]:
+    """How much of the pipeline one dictation can demonstrate.
+
+    Ranked by what a reader learns from it, not by recency. A dictation that
+    corrected an earlier belief shows reconciliation, which is the part of the
+    system hardest to believe from prose. One where the recogniser and the
+    formatted text disagree shows why the two passes are both kept - the whole
+    entity path downstream depends on the second one. More memories from one
+    dictation shows that extraction is not one-in-one-out.
+    """
+    corrections = int(row["corrections"] or 0)
+    misheard = 1 if _asr_differences(row["raw_asr"] or "", row["formatted_text"] or "") else 0
+    return (min(corrections, 1), misheard, int(row["memories"] or 0))
+
+
+def _asr_differences(raw: str, formatted: str) -> list[dict[str, str]]:
+    """Where the recogniser and the formatted text disagree, word by word.
+
+    The corpus keeps both passes, and the difference between them is the most
+    concrete illustration of what Kivi is for: a recogniser writes *rahool*,
+    formatting writes *Rahul*, and everything downstream - the entity bonus, the
+    name filter, the answer - depends on the second one.
+    """
+    strip = str.maketrans("", "", ".,!?;:'\"")
+    a = [w.translate(strip).lower() for w in raw.split()]
+    b_raw = formatted.split()
+    b = [w.translate(strip).lower() for w in b_raw]
+
+    out: list[dict[str, str]] = []
+    for tag, i1, i2, j1, j2 in SequenceMatcher(None, a, b).get_opcodes():
+        if tag == "equal":
+            continue
+        out.append(
+            {
+                "kind": tag,
+                "heard": " ".join(a[i1:i2]),
+                "written": " ".join(b_raw[j1:j2]),
+            }
+        )
+    return out
 
 
 @router.get("/{transcript_id}", response_model=TranscriptDetail)
