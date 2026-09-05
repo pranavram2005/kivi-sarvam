@@ -1549,8 +1549,8 @@ code {
   width: 5px;
   height: 5px;
   flex: none;
-  border-right: 1.5px solid var(--text-3);
-  border-bottom: 1.5px solid var(--text-3);
+  border-right: 1.5px solid var(--text-1);
+  border-bottom: 1.5px solid var(--text-1);
   transform: rotate(-45deg);
   transition: transform var(--dur-micro) var(--ease);
 }
@@ -1558,23 +1558,24 @@ code {
 .think--open .think__caret { transform: rotate(45deg); }
 
 .think__summary {
-  font-size: 12.5px;
-  color: var(--text-2);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-0);
   min-width: 0;
 }
 
-.think__line:hover:not(:disabled) .think__summary { color: var(--text-0); }
+.think__line:hover:not(:disabled) .think__summary { color: var(--green); }
 
 /* While it runs, the summary is the name of the step running right now. The
    sweep is the only motion on screen, so it reads as "still going" rather
    than as decoration. */
 .think__summary--live {
-  color: var(--text-1);
+  color: var(--text-0);
   background: linear-gradient(
     90deg,
-    var(--text-2) 0%,
-    var(--text-0) 45%,
-    var(--text-2) 90%
+    var(--text-1) 0%,
+    #ffffff 45%,
+    var(--text-1) 90%
   );
   background-size: 220% 100%;
   -webkit-background-clip: text;
@@ -1591,15 +1592,15 @@ code {
 @media (prefers-reduced-motion: reduce) {
   .think__summary--live {
     animation: none;
-    -webkit-text-fill-color: var(--text-1);
+    -webkit-text-fill-color: var(--text-0);
   }
 }
 
 .think__time {
   margin-left: auto;
   flex: none;
-  font-size: 10.5px;
-  color: var(--text-3);
+  font-size: 11px;
+  color: var(--text-2);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1622,9 +1623,9 @@ code {
 }
 
 .tk__name {
-  font-size: 12.5px;
-  font-weight: 500;
-  color: var(--text-1);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-0);
 }
 
 .tk--run .tk__name { color: var(--amber); }
