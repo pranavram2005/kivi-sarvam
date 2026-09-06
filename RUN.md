@@ -178,6 +178,15 @@ import a different corpus.
 | 10 | Go to **What Kivi Knows** | Kivi's understanding grouped by people, projects, upcoming, commitments and preferences. Use **Correct** and **Forget** on any memory. |
 | 11 | On that screen open **Replaced & forgotten** | Nothing is deleted. Superseded and forgotten memories are kept, and can be put back. |
 | 12 | Go to **Inspector** | The evaluation run with failures shown, corpus statistics, the query log, and a full provenance trace for any question you asked. |
+| 13 | Watch the line under any answer while it is still working | The pipeline narrates itself over server-sent events. Each step reports the moment it finishes, in a sentence built from the values it actually computed — *"Kept 8, dropped 31. Best score 1.959."* **show the numbers** on any step gives the raw facts and the candidate ranking behind it. |
+| 14 | After an answer, look at the **next** chips above the composer | Follow-up questions built from the memories that answer actually cited — and only offered when a memory exists that would answer them, so a suggestion never leads to a refusal. An answer that cited nothing offers none. |
+| 15 | Go to **How it works** → *A real example, step by step* | One real record from the corpus you loaded, walked end to end: what the recogniser heard, what formatting wrote, what was extracted and with what confidence, what belief it replaced, and the vector it is now findable by. Chosen live, so it works on a reviewer corpus too. |
+| 16 | On that page, section 6 → the live signal table | Retrieval combines six signals, and the three with no configurable weight account for over half the score. The table is read from the query log, so it moves as you ask more. |
+
+The answers quoted above are the **offline engine's** — the default with no API
+key. A hosted model phrases them differently and occasionally chooses a
+different memory; the verdicts (grounded / abstained / conflicting) are the
+part that is stable, because they are decided by code rather than by the model.
 
 ---
 
@@ -380,6 +389,22 @@ GET  /api/memories?status=ACTIVE every current memory
 GET  /api/memories/{id}          one memory with its full audit trail
 GET  /api/transcripts/{id}       one dictation and everything learned from it
 GET  /api/hey-kivi/queries/{id}  one answer with its retrieval ranking
+GET  /api/hey-kivi/follow-ups    what to ask next, from a given answer's memories
+GET  /api/transcripts/example    one dictation walked through to a stored vector
+POST /api/stream/ask             a question, narrated stage by stage (SSE)
+POST /api/stream/dictate         a dictation, narrated as it is learned (SSE)
+GET  /api/analytics/queries      including which retrieval signal actually decides
+```
+
+The two `/api/stream/*` endpoints run exactly the same code as their plain
+counterparts and emit a `stage` event as each step of the pipeline finishes,
+then one `done` event carrying the identical payload. To watch one from a
+shell:
+
+```bash
+curl -N -X POST http://127.0.0.1:8000/api/stream/ask \
+  -H "Content-Type: application/json" \
+  -d '{"question":"When is my meeting with Priya?"}'
 ```
 
 **Directly in SQLite** — `data/kivi.db` opens in any SQLite browser:
@@ -452,7 +477,9 @@ python scripts/reset.py --yes
 
 | Symptom | Cause and fix |
 | --- | --- |
-| `Could not reach the Kivi backend` in the UI | The backend is not running. Start `uvicorn backend.main:app --reload` from the repository root. |
+| `Could not reach the Kivi backend` in the UI | The backend is not running. Start `uvicorn backend.main:app --reload --reload-dir backend` from the repository root. |
+| The backend serves **stale code** — an edit, or a whole new endpoint, has no effect and a route 404s while it is plainly registered | `--reload` spawns a child process, and killing the reloader can leave that child holding the port. The PID shows as dead but the socket stays `LISTENING`, and on Windows a loopback connection reaches it in preference to any new server. Check `netstat -ano \| findstr :8000` for **more than one** listener and kill the leftover PID. Restarting without `--reload` avoids it entirely. |
+| A route 404s or returns `422 ... transcript_id` for a path that clearly exists | Same cause as the row above, nine times out of ten. Confirm what the running process actually has with `curl -s http://127.0.0.1:8000/openapi.json`. |
 | `Cannot reset ...: another process is using it` | The backend has the SQLite file open. Stop it with Ctrl+C, then re-run. |
 | `ModuleNotFoundError: No module named 'backend'` | Run commands from the **repository root**, not from `backend/`. |
 | `The database is empty, so there is nothing to evaluate` | Run `python scripts/seed.py` first. |
@@ -645,6 +672,16 @@ Dockerfile builds the frontend in a Node stage and copies the static output into
 a Python image, so one container serves the interface and the API from one
 origin — one process to keep alive, and no CORS.
 
+**The live trace goes through an edge proxy, and might not.** The two
+`/api/stream/*` endpoints are server-sent events, which a proxy is free to
+buffer and deliver as one lump at the end. They are sent with
+`Cache-Control: no-cache` and `X-Accel-Buffering: no`, and a comment frame every
+15 seconds keeps an idle timer from closing a connection while a model is
+thinking. If a host buffers anyway, the client notices the stream failed and
+falls back to the plain `POST` — **you lose the step-by-step narration, not the
+answer.** So a hosted instance where answers work but the trace appears all at
+once is working as designed, not broken.
+
 **The volume is not optional.** SQLite is a file. Without a volume mounted at
 `/data` every restart discards whatever was imported, which is the one failure a
 hosted review cannot survive.
@@ -680,4 +717,11 @@ a model too, reprocess once the instance is up and answering:
 
 ```bash
 curl -X POST "<URL>/api/memory/process"      -H "Content-Type: application/json" -d '{"reprocess_all": true}'
+```
+
+**Checking a deployment in one command.** If this returns a number, the image
+built, the volume mounted, the corpus seeded and extraction ran:
+
+```bash
+curl -s "<URL>/api/system/status" | python -c "import sys,json;d=json.load(sys.stdin);print(d['transcripts'],'dictations,',d['memories'])"
 ```

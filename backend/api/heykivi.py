@@ -102,6 +102,15 @@ _FOLLOW_UP_TEMPLATES: dict[str, str] = {
     "preference": "How do I prefer {attribute}?",
 }
 
+# The same templates, for a subject that is a project rather than a person.
+# "my meeting with Beacon" is the kind of sentence only a template writes.
+_PROJECT_TEMPLATES: dict[str, str] = {
+    "event": "When is the {noun} for {subject}?",
+    "task": "What do I still owe on {subject}?",
+    "fact": "What do I know about {subject}?",
+    "episode": "What did I say about {subject}?",
+}
+
 
 @router.get("/follow-ups", response_model=list[str])
 def follow_ups(query_id: int = Query(...), limit: int = Query(default=3, ge=1, le=6)) -> list[str]:
@@ -126,15 +135,22 @@ def follow_ups(query_id: int = Query(...), limit: int = Query(default=3, ge=1, l
         return []
 
     asked = normalise(log.get("question") or "")
-    seeds: list[str] = []
+
+    # Subjects first, and entities only to fill a gap. A subject is curated -
+    # it is a person's name, or "Project X" - so a template can be phrased
+    # around it grammatically. An entity is any capitalised thing the extractor
+    # noticed, which is how you end up asking about "my meeting with Beacon".
+    subjects: list[str] = []
+    entities: list[str] = []
     for memory in store.get_memories(log.get("used_memory_ids") or []):
         subject = (memory.get("subject") or "").strip()
-        if subject and subject.lower() != "user" and subject not in seeds:
-            seeds.append(subject)
+        if subject and subject.lower() != "user" and subject not in subjects:
+            subjects.append(subject)
         for entity in memory.get("entities") or []:
             entity = entity.strip()
-            if entity and entity not in seeds:
-                seeds.append(entity)
+            if entity and entity not in entities:
+                entities.append(entity)
+    seeds = subjects + [e for e in entities if e not in subjects]
 
     out: list[str] = []
     for subject in seeds:
@@ -146,7 +162,14 @@ def follow_ups(query_id: int = Query(...), limit: int = Query(default=3, ge=1, l
             if m["id"] not in (log.get("used_memory_ids") or [])
         ]
         for memory in others:
-            template = _FOLLOW_UP_TEMPLATES.get(memory.get("type") or "")
+            table = (
+                _FOLLOW_UP_TEMPLATES
+                if subject in subjects and not _is_project(subject)
+                # A project subject, or a bare entity whose kind is unknown -
+                # either way, a phrasing that does not assume a person.
+                else _PROJECT_TEMPLATES
+            )
+            template = table.get(memory.get("type") or "")
             if not template:
                 continue
             question = template.format(
@@ -172,6 +195,17 @@ def follow_ups(query_id: int = Query(...), limit: int = Query(default=3, ge=1, l
                 break
 
     return out[:limit]
+
+
+def _is_project(subject: str) -> bool:
+    """Whether a subject names a project rather than a person.
+
+    The same shallow test the starter suggestions use, and the same shallowness
+    the retriever has everywhere: there is no entity-typing layer in this
+    system, and inventing one here would be the wrong place for it. Getting it
+    wrong costs a slightly odd suggestion, never a wrong answer.
+    """
+    return subject.strip().lower().startswith(("project", "initiative"))
 
 
 def _noun_for(memory: dict[str, Any]) -> str:
