@@ -1,91 +1,58 @@
 # Product Vision
 
-> **⚠️ PART ONE — WRITE THIS YOURSELF.**
->
-> The assignment states explicitly that Part One must be your own thinking and
-> that generative AI must not be used to author the final positioning statement
-> or vision document. This file is a **scaffold**: the shape of the argument and
-> the questions worth answering. The prose is yours.
->
-> Write and preserve this file *before* reviewing Part Two, as the assignment asks.
->
-> Delete this banner once you have written your vision.
+*484 words.*
 
-**Hard limit: 600 words.** Count them before you submit.
+## The Shift from Voice-to-Text to Context-Aware Dictation
 
----
+Dictation apps of the past consider each encounter a single island, considering
+only mechanics such as spelling, punctuation, and style. The introduction of
+semantics transforms Kivi into an omnipresent assistant that maintains
+consistency in its work regardless of project, person, preferences, and
+occasions. Instead of functioning as another application in which to travel to
+dictate or as a separate chatbot interface, Kivi exists right within the user's
+workflow process, silently gathering context through voice commands to
+facilitate future dictations.
 
-## Write your vision here
+## Eliminating Repetitive Contextual Overhead
 
-<!-- BEGIN VISION (max 600 words) -->
+The main return on investment in the semantic memory model is not just to go
+through the history of dictations, but to reduce the friction associated with
+dictation. Normally, a large amount of time is wasted in re-establishing the
+context that is relevant for the particular task being performed. In the
+presence of memory that persists, the system fills in these gaps automatically.
+Given that from previous dictations it is known that Rahul runs the backend, the
+product will be launched on Friday, and a security audit is pending, all the
+user has to do is to say, "Create an Acme update."
 
-_(your 600 words go here)_
+## Selective Ingestion and Noise Filtering
 
-<!-- END VISION -->
+It is necessary for the efficient functioning of the memory to be very
+selective. Kivi needs to remove noise from its environment while storing
+information that can be considered high-value, such as domain knowledge,
+preferences, state of projects, key events, and social relationships. The phrase
+"I prefer concise, three-bullet client emails" is valuable and needs to go into
+the persistent store. On the other hand, ephemeral phrases like "I am tired
+today" need to be immediately removed. In case of ambiguity, Kivi should be
+cautious and get rid of the information.
 
----
+## Epistemological Discipline and Conflict Management
 
-## Suggested spine for the argument
+For the purpose of operational accuracy, Kivi needs to draw a distinction
+between speculative inputs and facts that have been proven. Inputs like "Maybe
+Arjun will take over the backend" must not be saved as absolute facts. Moreover,
+whenever there are new inputs that conflict with older ones, then Kivi needs to
+update the active context based on the latest facts. The domain boundaries need
+to be maintained and preferences or facts mentioned implicitly during personal
+dictations must not be mixed with professional outputs without clear user
+alignment.
 
-You do not have to use these as literal section headings — they are the beats a
-convincing vision document usually hits.
+## User Trust, Provenance and Memory Management
 
-### 1. The relationship, named
-
-What kind of thing is Kivi to the user? A colleague who was in the room? A
-notebook that reads itself back? A second memory? Commit to one metaphor and
-let it govern every later decision. The metaphor you choose determines what
-feels like a bug.
-
-### 2. Why memory, and why *semantic* memory
-
-Kivi already remembers spellings, phonetics, and per-app writing styles. Argue
-why the next layer up — durable understanding of *what the user is working on* —
-is the one that changes the product rather than merely improving it.
-
-### 3. What earns a place in memory
-
-Most speech is not worth remembering. State your philosophy of restraint: what
-Kivi keeps, what it drops on the floor, and why a system that remembers less
-can be trusted more. Connect this to the confidence threshold and the explicit
-REJECTED status in the build.
-
-### 4. Memory as something that changes
-
-Facts go stale. Meetings move. People are reassigned. Describe how Kivi should
-treat its own past beliefs — the difference between *forgetting* and
-*superseding*, and why keeping the superseded version visible is a feature.
-
-### 5. Honesty over helpfulness
-
-The hardest product decision here: Kivi will often be able to produce a
-plausible answer it cannot support. Argue for abstention, for surfacing
-conflicts instead of resolving them silently, and for what the user gains when
-the system is willing to say "I don't know."
-
-### 6. Who is in control
-
-Memory the user cannot see is memory the user cannot trust. Describe the
-control surface — inspect, correct, forget — and why it must stay in product
-language (people, projects, meetings) rather than database language (embeddings,
-row ids, vectors).
-
-### 7. What you are deliberately not building
-
-Name the tempting features you rejected and why: inferring mood, scoring
-relationships, guessing at intent, summarising the user to themselves,
-integrating with the calendar to fill gaps. Restraint is the argument.
-
-### 8. What "working" looks like
-
-Close on how you would know the vision succeeded — in behaviour a user would
-notice, not in metrics. Then note which of those behaviours the evaluation
-suite in this repo actually measures.
-
-## Self-check before you submit
-
-- [ ] It is under 600 words.
-- [ ] It reads as one argument, not eight labelled sections.
-- [ ] It takes at least one position a reasonable person could disagree with.
-- [ ] It explains a philosophy of *forgetting*, not only of remembering.
-- [ ] It is consistent with what the code in this repo actually does.
+Trust is maintained through proper provenance and user agency rather than
+trusting the accuracy of the model itself. In every case, the memory cards
+created by Kivi must be connected to the original dictation from which the
+memory was extracted by the user. Users need a way to audit and govern their
+memories. Specifically, users need access to the control plane of memories where
+they can review, edit, override and delete them. Lastly, if Kivi faces a
+situation of missing context or ambiguity in the record, then it needs to
+explicitly state so instead of hallucinating facts.

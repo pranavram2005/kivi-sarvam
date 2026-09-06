@@ -835,6 +835,17 @@ Known and honest.
   each question — a few milliseconds for a single user's history, but it would
   need an index and a cache at a much larger scale. Deliberate: correctness and
   inspectability over premature optimisation.
+- **Memory is not scoped by application.** Every dictation records which app it
+  came from, and the extractor is given that context, but the application is
+  never used at retrieval time — it appears in `retriever.py` only to be passed
+  through to provenance. So a preference learned in Messages is exactly as
+  retrievable when drafting in Linear as one learned there. The boundary is
+  recorded and not enforced. Blanket per-app isolation would be the wrong fix —
+  the assignment's own example is a fact learned in Slack mattering in Gmail —
+  so what is missing is a travel policy per memory *type*, which the schema
+  already supports and nothing yet acts on. The vision document names this as a
+  requirement; it is not built.
+
 - **Single user.** `user_id` is threaded through the schema and every query, but
   there is no authentication. The assignment did not need it.
 - **Time resolution is English-only and relative to the dictation timestamp.**
