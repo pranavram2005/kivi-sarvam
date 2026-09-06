@@ -1,6 +1,6 @@
 # Product Vision
 
-*484 words.*
+Making Kivi a contextually-aware assistant rather than just a plain dictation software involves developing a strong semantic memory system. Rather than just analyzing audio input, Kivi will be able to analyze the flow of the user's work process without having to transfer into a different platform for chatting. The following is a description of how semantic memory can be structured.
 
 ## The Shift from Voice-to-Text to Context-Aware Dictation
 
