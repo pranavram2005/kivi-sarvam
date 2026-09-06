@@ -1,7 +1,5 @@
 # Product Positioning Statement
 
-> **⚠️ THIS IS 120 WORDS. THE LIMIT IS 100. Trim 20 words, then delete this line.**
-
 Kivi is a voice-driven dictation application that already stores the spelling of
 words and the history of dictations. However, it does not preserve the semantic
 content of a user's creation. This is a serious issue because there may be
