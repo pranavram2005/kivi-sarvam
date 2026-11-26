@@ -1,21 +1,72 @@
-# fly.toml app configuration file generated for semantic-search-ai on 2026-11-26T07:43:25Z
+# fly.toml app configuration file generated for semantic-search-ai on 2026-11-26T07:43:25Z,
+# then corrected by hand. The generated defaults assume a stateless web app on
+# port 8080; this one serves a SQLite database on port 8000 and does several
+# minutes of work on its first boot. Every edit below is one of those three facts.
 #
 # See https://docs.fly.io/reference/configuration for information about how to use this file.
+#
+# First deploy, in order:
+#
+#   fly volumes create kivi_data --size 1 --region iad --app semantic-search-ai
+#   fly deploy
+#   fly scale count 1     # confirm; never above 1 while the database is SQLite
 #
 
 app = 'semantic-search-ai'
 primary_region = 'iad'
 
 [build]
+  # The automatic builder would see package.json and deploy the frontend alone,
+  # or see requirements.txt and deploy the API without the built UI. The
+  # Dockerfile builds both and serves the UI from the API's own origin.
+  dockerfile = 'Dockerfile'
+
+# SQLite is a file. The image points KIVI_DATABASE_URL at sqlite:////data/kivi.db,
+# so without this mount /data is the container's own filesystem and every
+# restart - a redeploy, an OOM kill, Fly moving the machine - discards the
+# imported corpus. docker-entrypoint.sh prints "[kivi] WARNING" when it detects
+# this, so `fly logs` will say so out loud. The source must match the name
+# passed to `fly volumes create`.
+[mounts]
+  source = 'kivi_data'
+  destination = '/data'
+
 [http_service]
-  internal_port = 8080
+  # Was 8080. Nothing listens there: docker-entrypoint.sh ends with
+  # `uvicorn --port ${PORT:-8000}` and Fly injects no PORT, so the app binds
+  # 8000 while the proxy knocks on 8080. That mismatch is a 502 on every
+  # request and a deploy that never reaches a good state.
+  internal_port = 8000
   force_https = true
-  auto_stop_machines = 'stop'
+
+  # Was 'stop' with min_machines_running = 0. A machine that owns a SQLite file
+  # gains nothing from stopping between requests and pays for it twice: a cold
+  # start re-runs migrations, and an idle stop can land mid-write. Note the
+  # value is a string - the boolean form (`false`) is deprecated and newer
+  # flyctl rejects it.
+  auto_stop_machines = 'off'
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1
   processes = ['app']
 
+  # The grace period is the setting that matters, and the default is far too
+  # short. On an empty volume the entrypoint imports the 500-record corpus and
+  # runs extraction over all of it BEFORE uvicorn binds a port, so the first
+  # boot has nothing listening for minutes. A short grace period kills the
+  # machine mid-seed, Fly restarts it, it seeds from the top again, and the
+  # deploy fails as a boot loop that never serves a request. Every later boot
+  # finds the corpus already processed and comes up in seconds.
+  [[http_service.checks]]
+    path = '/api/health'
+    grace_period = '5m'
+    interval = '15s'
+    timeout = '5s'
+    method = 'get'
+
 [[vm]]
-  memory = '256mb'
+  # Was 256mb, which the seeding pass exhausts while building memories for 500
+  # transcripts. An OOM kill there looks identical to the healthcheck boot loop
+  # above, so raising this and the grace period go together.
+  memory = '1gb'
   cpu_kind = 'shared'
   cpus = 1
